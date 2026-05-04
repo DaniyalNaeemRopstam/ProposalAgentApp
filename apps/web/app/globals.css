@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+
+  /* ProposalAgent_MVP.jsx C — exact */
+  --color-bg: #0a0c10;
+  --color-surface: #111318;
+  --color-surface-high: #111318;
+  --color-surface-hover: #181c24;
+  --color-border: #1e2330;
+  --color-border-bright: #2e3550;
+  --color-accent: #4f7cff;
+  --color-accent-dim: #1e2d5f;
+  --color-accent-glow: rgba(79, 124, 255, 0.18);
+  --color-accent-text: #8aaeff;
+  --color-success: #22d07a;
+  --color-success-dim: #0d3020;
+  --color-success-text: #4deba0;
+  --color-warn: #f59e0b;
+  --color-warn-dim: #2d2000;
+  --color-warn-text: #ffd080;
+  --color-danger: #f56060;
+  --color-danger-dim: #2a1212;
+  --color-purple: #a78bfa;
+  --color-purple-dim: #2d1f5a;
+  --color-teal: #2dd4bf;
+  --color-teal-dim: #0d2e2a;
+  --color-text: #f0f2f8;
+  --color-text-sub: #6b7394;
+  --color-text-muted: #6b7394;
+  --color-text-dim: #3a4060;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 2px;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: var(--color-bg);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@keyframes fadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--color-accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 32px var(--color-accent-glow),
+      0 0 48px var(--color-accent-glow);
+  }
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
