@@ -8,6 +8,7 @@ import type {
   listSequencesQuerySchema,
   sequenceIdParamSchema,
 } from "../schemas/sequenceSchemas";
+import { emitStatsUpdated } from "../realtime/emitters";
 import { generateFollowUpMessages, scheduledDate } from "../services/sequenceService";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
@@ -60,6 +61,8 @@ export async function markProposalSent(req: Request, res: Response): Promise<voi
     { _id: req.user!._id },
     { $inc: { "stats.proposalsSent": 1 } }
   ).catch(() => void 0); // non-fatal
+
+  await emitStatsUpdated(req.user!._id.toString()).catch(() => void 0);
 
   // Bail out if a sequence already exists for this proposal
   const existing = await Sequence.findOne({ proposalId: proposal._id });

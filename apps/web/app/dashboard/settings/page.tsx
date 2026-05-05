@@ -2,10 +2,11 @@
 
 import { Suspense } from "react";
 import { SettingsTab } from "@/components/settings/SettingsTab";
+import { SettingsSkeleton } from "@/components/skeletons/SettingsSkeleton";
 
 function SettingsPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<SettingsSkeleton />}>
       <SettingsTab />
     </Suspense>
   );

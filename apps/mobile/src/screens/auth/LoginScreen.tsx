@@ -11,7 +11,8 @@ import { Link, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
-import { useLogin } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuth";
+import { offerBiometricEnrollment } from "../../lib/biometricPrompt";
 import { colors } from "../../theme/colors";
 
 export function LoginScreen() {
@@ -20,7 +21,10 @@ export function LoginScreen() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
-  const login = useLogin();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const { login } = useAuth();
 
   const validateForm = () => {
     let isValid = true;
@@ -48,17 +52,19 @@ export function LoginScreen() {
     return isValid;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validateForm()) return;
-    
-    login.mutate(
-      { email: email.trim(), password },
-      {
-        onSuccess: () => {
-          router.replace("/(tabs)");
-        },
-      }
-    );
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      await login(email.trim(), password);
+      await offerBiometricEnrollment();
+      router.replace("/(tabs)");
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Sign in failed.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -101,26 +107,24 @@ export function LoginScreen() {
                 autoComplete="current-password"
               />
 
-              {login.error && (
-                <Text style={styles.errorMessage}>
-                  {login.error.message}
-                </Text>
-              )}
+              {submitError ? (
+                <Text style={styles.errorMessage}>{submitError}</Text>
+              ) : null}
 
               <Button
                 title="Sign In"
                 onPress={handleLogin}
-                loading={login.isPending}
+                loading={submitting}
                 style={styles.loginButton}
               />
 
-              {login.isError ? (
+              {submitError ? (
                 <Button
                   title="Retry"
                   variant="ghost"
                   onPress={handleLogin}
-                  loading={login.isPending}
-                  disabled={login.isPending}
+                  loading={submitting}
+                  disabled={submitting}
                   style={styles.retryButton}
                 />
               ) : null}

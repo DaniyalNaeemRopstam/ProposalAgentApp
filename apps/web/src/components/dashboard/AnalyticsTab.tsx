@@ -14,6 +14,7 @@ import {
   type AIInsight,
   type PlatformData,
 } from "@/hooks/useAnalytics";
+import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
 
 // MVP color mapping for platforms
 const PLATFORM_COLORS: Record<string, string> = {
@@ -35,48 +36,6 @@ const INSIGHT_ICONS: Record<string, "check" | "arrow"> = {
   suggestion: "check", 
   warning: "arrow",
 };
-
-function LoadingSkeleton() {
-  return (
-    <div className="animate-slideUp">
-      <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="animate-pulse rounded-xl border border-border bg-surface p-5">
-          <div className="mb-4 h-3 w-40 rounded bg-border" />
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="mb-3">
-              <div className="mb-1 flex justify-between">
-                <div className="h-3 w-16 rounded bg-border" />
-                <div className="h-3 w-20 rounded bg-border" />
-              </div>
-              <div className="h-1.5 rounded bg-border" />
-            </div>
-          ))}
-        </div>
-        <div className="animate-pulse rounded-xl border border-border bg-surface p-5">
-          <div className="mb-4 h-3 w-44 rounded bg-border" />
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="mb-3">
-              <div className="mb-1 flex justify-between">
-                <div className="h-3 w-24 rounded bg-border" />
-                <div className="h-3 w-16 rounded bg-border" />
-              </div>
-              <div className="h-1.5 rounded bg-border" />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="animate-pulse rounded-xl border border-border bg-surface p-5">
-        <div className="mb-4 h-3 w-52 rounded bg-border" />
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="mb-2 flex gap-2.5 rounded-lg bg-bg px-3 py-2.5">
-            <div className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded bg-border" />
-            <div className="h-3 flex-1 rounded bg-border" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function ErrorState({ message }: { message: string }) {
   return (
@@ -239,7 +198,11 @@ export function AnalyticsTab() {
   const hasError = overviewError || monthlyError || platformsError || insightsError;
 
   if (isLoading) {
-    return <LoadingSkeleton />;
+    return (
+      <div className="animate-slideUp">
+        <AnalyticsSkeleton />
+      </div>
+    );
   }
 
   if (hasError) {

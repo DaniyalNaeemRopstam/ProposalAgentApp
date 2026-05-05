@@ -19,6 +19,7 @@ import {
   rqPersistDehydrateOptions,
 } from "../src/lib/reactQuery";
 import { AppBootstrap } from "../src/providers/AppBootstrap";
+import { AuthProvider } from "../src/context/AuthContext";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -43,31 +44,33 @@ export default function RootLayout() {
             dehydrateOptions: rqPersistDehydrateOptions,
           }}
         >
-          <AppBootstrap>
-            <StatusBar style="light" backgroundColor={colors.bg} />
-            <Stack
-              screenOptions={{
-                headerStyle: {
-                  backgroundColor: colors.surface,
-                },
-                headerTintColor: colors.text,
-                headerTitleStyle: {
-                  fontWeight: "600",
-                },
-              }}
-            >
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="auth/login"
-                options={{ title: "Sign In", headerShown: false }}
-              />
-              <Stack.Screen
-                name="auth/register"
-                options={{ title: "Sign Up", headerShown: false }}
-              />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            </Stack>
-          </AppBootstrap>
+          <AuthProvider>
+            <AppBootstrap>
+              <StatusBar style="light" backgroundColor={colors.bg} />
+              <Stack
+                screenOptions={{
+                  headerStyle: {
+                    backgroundColor: colors.surface,
+                  },
+                  headerTintColor: colors.text,
+                  headerTitleStyle: {
+                    fontWeight: "600",
+                  },
+                }}
+              >
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="auth/login"
+                  options={{ title: "Sign In", headerShown: false }}
+                />
+                <Stack.Screen
+                  name="auth/register"
+                  options={{ title: "Sign Up", headerShown: false }}
+                />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              </Stack>
+            </AppBootstrap>
+          </AuthProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

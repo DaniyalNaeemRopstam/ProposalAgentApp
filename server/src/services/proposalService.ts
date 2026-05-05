@@ -185,6 +185,37 @@ ${proposal}
 """`.trim();
 }
 
+async function scoreProposalQuality(
+  anthropic: Anthropic,
+  content: string,
+  jobTitle: string
+): Promise<{ proposalScore: number; replyProbability: number }> {
+  let replyProbability = 65;
+  let proposalScore = 70;
+
+  try {
+    const scoreMsg = await anthropic.messages.create({
+      model: SCORE_MODEL,
+      max_tokens: 400,
+      messages: [{ role: "user", content: buildScoringPrompt(content, jobTitle) }],
+    });
+
+    const scoreBlock = scoreMsg.content[0];
+    if (scoreBlock.type === "text") {
+      const parsed = extractJsonPayload(scoreBlock.text);
+      const validated = proposalQualitySchema.safeParse(parsed);
+      if (validated.success) {
+        proposalScore = Math.round(validated.data.proposalScore);
+        replyProbability = Math.round(validated.data.replyProbability);
+      }
+    }
+  } catch {
+    // Non-fatal: use default scores if scoring call fails
+  }
+
+  return { proposalScore, replyProbability };
+}
+
 // ─── Main generation function ─────────────────────────────────────────────────
 
 export async function generateProposal(
@@ -207,29 +238,41 @@ export async function generateProposal(
   const content = proposalBlock.text.trim();
   const wordCount = content.split(/\s+/).filter(Boolean).length;
 
-  // ── Call 2: Score the proposal (claude-haiku — faster & cheaper) ───────────
-  let replyProbability = 65;
-  let proposalScore = 70;
+  const { replyProbability, proposalScore } = await scoreProposalQuality(
+    anthropic,
+    content,
+    input.jobTitle
+  );
 
-  try {
-    const scoreMsg = await anthropic.messages.create({
-      model: SCORE_MODEL,
-      max_tokens: 400,
-      messages: [{ role: "user", content: buildScoringPrompt(content, input.jobTitle) }],
-    });
+  return { content, wordCount, replyProbability, proposalScore };
+}
 
-    const scoreBlock = scoreMsg.content[0];
-    if (scoreBlock.type === "text") {
-      const parsed = extractJsonPayload(scoreBlock.text);
-      const validated = proposalQualitySchema.safeParse(parsed);
-      if (validated.success) {
-        proposalScore = Math.round(validated.data.proposalScore);
-        replyProbability = Math.round(validated.data.replyProbability);
-      }
-    }
-  } catch {
-    // Non-fatal: use default scores if scoring call fails
-  }
+// ─── Streaming generation (Claude messages.stream) ───────────────────────────
+
+export async function generateProposalStreaming(
+  input: GenerateProposalInput,
+  onTextDelta: (delta: string) => void
+): Promise<GenerateProposalResult> {
+  const anthropic = getAnthropic();
+
+  const stream = anthropic.messages.stream({
+    model: PROPOSAL_MODEL,
+    max_tokens: 1000,
+    messages: [{ role: "user", content: buildProposalPrompt(input) }],
+  });
+
+  stream.on("text", (delta) => {
+    onTextDelta(delta);
+  });
+
+  const content = (await stream.finalText()).trim();
+  const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+  const { replyProbability, proposalScore } = await scoreProposalQuality(
+    anthropic,
+    content,
+    input.jobTitle
+  );
 
   return { content, wordCount, replyProbability, proposalScore };
 }

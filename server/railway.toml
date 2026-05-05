@@ -1,0 +1,14 @@
+# Railway: connect this repo with the SERVICE ROOT set to the monorepo root (not `/server`).
+# Dockerfile path / context: configure `Dockerfile Path` → `server/Dockerfile`
+# so `COPY packages` resolves. Alternatively set env `RAILWAY_DOCKERFILE_PATH=server/Dockerfile`.
+#
+# If you must use Railway "Root Directory = server/", this image will not build;
+# prefer repo root + custom Dockerfile location as above.
+
+[build]
+builder = "dockerfile"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 300

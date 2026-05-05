@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { serverApi } from "./api";
+import { getStoredToken } from "./tokenStorage";
 
 export const PA_EXPO_PUSH_TOKEN_KEY = "pa_last_expo_push_token";
 const PA_NOTIFICATIONS_REQUESTED_KEY = "pa_notifications_perm_asked";
@@ -24,7 +25,7 @@ async function ensureAndroidChannel(): Promise<void> {
 }
 
 export async function postPushTokenToServer(expoPushToken: string): Promise<void> {
-  const token = await AsyncStorage.getItem("authToken");
+  const token = await getStoredToken();
   if (!token) return;
 
   try {
@@ -75,7 +76,7 @@ export async function setupPushRegistration(): Promise<void> {
     const expoToken = tokenRes.data;
     await AsyncStorage.setItem(PA_EXPO_PUSH_TOKEN_KEY, expoToken);
 
-    const authed = await AsyncStorage.getItem("authToken");
+    const authed = await getStoredToken();
     if (authed) {
       await postPushTokenToServer(expoToken);
     }

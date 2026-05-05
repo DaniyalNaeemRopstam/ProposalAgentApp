@@ -3,7 +3,8 @@ import type { z } from "zod";
 import mongoose from "mongoose";
 import { Proposal } from "../models/Proposal";
 import { User } from "../models/User";
-import { generateProposal } from "../services/proposalService";
+import { emitStatsUpdated } from "../realtime/emitters";
+import { generateProposal, generateProposalStreaming } from "../services/proposalService";
 import type {
   generateProposalBodySchema,
   listProposalsQuerySchema,
@@ -28,30 +29,17 @@ async function findOwnedProposal(proposalId: string, userId: mongoose.Types.Obje
   return doc;
 }
 
-// ─── POST /api/proposals/generate ────────────────────────────────────────────
-
-export async function generate(req: Request, res: Response): Promise<void> {
-  const body = req.validated as z.infer<typeof generateProposalBodySchema>;
-  const user = await loadUser(req);
-
-  const result = await generateProposal({
-    jobTitle: body.jobTitle,
-    jobDescription: body.jobDescription,
-    jobBudget: body.jobBudget,
-    platform: body.platform,
-    clientName: body.clientName,
-    clientCountry: body.clientCountry,
-    tags: body.tags,
-    mode: body.mode,
-    variant: body.variant,
-    user: {
-      name: user.name,
-      companyName: user.companyName,
-      plan: user.plan,
-      voiceProfile: user.voiceProfile,
-      projectLibrary: user.projectLibrary,
-    },
-  });
+async function finalizeGeneratedProposal(opts: {
+  req: Request;
+  body: z.infer<typeof generateProposalBodySchema>;
+  result: {
+    content: string;
+    wordCount: number;
+    replyProbability: number;
+    proposalScore: number;
+  };
+}) {
+  const { req, body, result } = opts;
 
   const jobSnapshot = {
     title: body.jobTitle,
@@ -75,11 +63,48 @@ export async function generate(req: Request, res: Response): Promise<void> {
     status: "draft",
   });
 
-  // Increment proposalsSent on user stats
-  await User.updateOne(
-    { _id: req.user!._id },
-    { $inc: { "stats.proposalsSent": 1 } }
-  );
+  await User.updateOne({ _id: req.user!._id }, { $inc: { "stats.proposalsSent": 1 } });
+  await emitStatsUpdated(req.user!._id.toString());
+
+  return proposal;
+}
+
+// ─── POST /api/proposals/generate ────────────────────────────────────────────
+
+export async function generate(req: Request, res: Response): Promise<void> {
+  const accept = req.headers.accept ?? "";
+  if (accept.includes("text/event-stream")) {
+    await generateSse(req, res);
+    return;
+  }
+
+  await generateJson(req, res);
+}
+
+async function generateJson(req: Request, res: Response): Promise<void> {
+  const body = req.validated as z.infer<typeof generateProposalBodySchema>;
+  const user = await loadUser(req);
+
+  const result = await generateProposal({
+    jobTitle: body.jobTitle,
+    jobDescription: body.jobDescription,
+    jobBudget: body.jobBudget,
+    platform: body.platform,
+    clientName: body.clientName,
+    clientCountry: body.clientCountry,
+    tags: body.tags,
+    mode: body.mode,
+    variant: body.variant,
+    user: {
+      name: user.name,
+      companyName: user.companyName,
+      plan: user.plan,
+      voiceProfile: user.voiceProfile,
+      projectLibrary: user.projectLibrary,
+    },
+  });
+
+  const proposal = await finalizeGeneratedProposal({ req, body, result });
 
   res.status(201).json(
     ok({
@@ -89,6 +114,67 @@ export async function generate(req: Request, res: Response): Promise<void> {
       proposalScore: result.proposalScore,
     })
   );
+}
+
+async function generateSse(req: Request, res: Response): Promise<void> {
+  const body = req.validated as z.infer<typeof generateProposalBodySchema>;
+  const user = await loadUser(req);
+
+  const input = {
+    jobTitle: body.jobTitle,
+    jobDescription: body.jobDescription,
+    jobBudget: body.jobBudget,
+    platform: body.platform,
+    clientName: body.clientName,
+    clientCountry: body.clientCountry,
+    tags: body.tags,
+    mode: body.mode,
+    variant: body.variant,
+    user: {
+      name: user.name,
+      companyName: user.companyName,
+      plan: user.plan,
+      voiceProfile: user.voiceProfile,
+      projectLibrary: user.projectLibrary,
+    },
+  };
+
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  (res as Response & { flushHeaders?: () => void }).flushHeaders?.();
+
+  const writeSse = (obj: object) => {
+    res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  };
+
+  try {
+    const result = await generateProposalStreaming(input, (chunk) => {
+      writeSse({ chunk });
+    });
+
+    const proposal = await finalizeGeneratedProposal({ req, body, result });
+
+    writeSse({
+      done: true,
+      proposalId: proposal._id.toString(),
+      score: result.proposalScore,
+      replyProbability: result.replyProbability,
+      wordCount: result.wordCount,
+    });
+    res.end();
+  } catch (err: unknown) {
+    const msg =
+      err &&
+      typeof err === "object" &&
+      "message" in err &&
+      typeof (err as { message: unknown }).message === "string"
+        ? (err as { message: string }).message
+        : "Proposal generation failed.";
+    writeSse({ error: msg });
+    res.end();
+  }
 }
 
 // ─── GET /api/proposals ───────────────────────────────────────────────────────
@@ -165,6 +251,10 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
       { _id: req.user!._id },
       { $inc: { "stats.repliesReceived": 1 } }
     );
+  }
+
+  if (body.status === "won" || body.status === "replied") {
+    await emitStatsUpdated(req.user!._id.toString());
   }
 
   res.json(ok(updated));

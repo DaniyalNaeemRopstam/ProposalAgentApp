@@ -2,34 +2,112 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/dashboard/Icon";
 import { StatCard } from "@/components/ui/StatCard";
+import { useSocket } from "@/hooks/useSocket";
+import { useAnalyticsOverview } from "@/hooks/useAnalytics";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
 
 const NAV = [
-  { href: "/jobs", label: "Jobs", icon: "target" as const },
-  { href: "/proposals", label: "Proposal", icon: "sparkle" as const },
-  { href: "/sequences", label: "Sequences", icon: "clock" as const },
-  { href: "/pipeline", label: "Pipeline", icon: "trending" as const },
-  { href: "/analytics", label: "Analytics", icon: "bar" as const },
-  { href: "/settings", label: "Settings", icon: "user" as const },
+  { href: "/dashboard/jobs", label: "Jobs", icon: "target" as const },
+  { href: "/dashboard/proposals", label: "Proposal", icon: "sparkle" as const },
+  { href: "/dashboard/sequences", label: "Sequences", icon: "clock" as const },
+  { href: "/dashboard/pipeline", label: "Pipeline", icon: "trending" as const },
+  { href: "/dashboard/analytics", label: "Analytics", icon: "bar" as const },
+  { href: "/dashboard/settings", label: "Settings", icon: "user" as const },
 ];
 
-function useDemoStats() {
-  const stats = { sent: 23, replied: 7, won: 3, revenue: 18400 };
-  const winRate = stats.sent ? Math.round((stats.won / stats.sent) * 100) : 0;
-  const replyRate = stats.sent ? Math.round((stats.replied / stats.sent) * 100) : 0;
-  return { stats, winRate, replyRate };
+function CountUpInt({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+
+  useEffect(() => {
+    const target = value;
+    const from = fromRef.current;
+    if (from === target) return;
+
+    const start = performance.now();
+    const dur = 520;
+    let frame = 0;
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / dur);
+      setDisplay(Math.round(from + (target - from) * t));
+      if (t < 1) frame = requestAnimationFrame(step);
+      else fromRef.current = target;
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return <>{display}</>;
+}
+
+function CountUpRate({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+
+  useEffect(() => {
+    const target = value;
+    const from = fromRef.current;
+    if (from === target) return;
+
+    const start = performance.now();
+    const dur = 520;
+    let frame = 0;
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / dur);
+      const v = from + (target - from) * t;
+      setDisplay(Math.round(v * 10) / 10);
+      if (t < 1) frame = requestAnimationFrame(step);
+      else fromRef.current = target;
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return <>{display}%</>;
 }
 
 export function DashboardAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { stats, winRate, replyRate } = useDemoStats();
+  const { data: overview } = useAnalyticsOverview();
+
+  const [liveEvents, setLiveEvents] = useState(0);
+  const [jobsNavBadge, setJobsNavBadge] = useState(0);
+  const [statPulse, setStatPulse] = useState(false);
+
+  useSocket({
+    onSidebarJobsBump: () => setJobsNavBadge((n) => Math.min(n + 1, 999)),
+    onLiveActivityBump: () => setLiveEvents((n) => Math.min(n + 1, 999)),
+    onStatsBump: () => setStatPulse(true),
+  });
+
+  useEffect(() => {
+    if (pathname === "/dashboard/jobs" || pathname.startsWith("/dashboard/jobs/")) {
+      setJobsNavBadge(0);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!statPulse) return;
+    const t = window.setTimeout(() => setStatPulse(false), 750);
+    return () => clearTimeout(t);
+  }, [statPulse]);
+
+  const sent = overview?.proposalsSent ?? 0;
+  const replyRate = overview?.replyRate ?? 0;
+  const winRate = overview?.winRate ?? 0;
+  const revenueK = overview != null ? (overview.revenueWon ?? 0) / 1000 : 0;
 
   return (
     <div className="flex min-h-screen bg-bg text-text">
+
       <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface px-3 py-6">
         <div className="mb-8 px-2">
           <div className="font-display text-sm font-bold tracking-tight text-text">Menu</div>
@@ -38,6 +116,7 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
         <nav className="flex flex-1 flex-col gap-1">
           {NAV.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const showBadge = item.href === "/dashboard/jobs" && jobsNavBadge > 0;
             return (
               <Link
                 key={item.href}
@@ -52,7 +131,18 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
                 <span className={active ? "text-accent" : "text-textMuted"}>
                   <Icon name={item.icon} size={14} />
                 </span>
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {showBadge ? (
+                  <span
+                    className={cn(
+                      "flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-px",
+                      "text-[10px] font-semibold text-white"
+                    )}
+                    style={{ background: C.accent }}
+                  >
+                    {jobsNavBadge > 99 ? "99+" : jobsNavBadge}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -79,24 +169,25 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <div
+              title="Real-time dashboard activity"
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
               style={{
                 background: C.successDim,
                 border: `1px solid ${C.success}30`,
               }}
             >
-              <span className="relative flex h-1.5 w-1.5">
+              <span className="relative flex h-2 w-2">
                 <span
-                  className="absolute inline-flex h-full w-full animate-pulse rounded-full opacity-75"
+                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40"
                   style={{ background: C.success }}
                 />
                 <span
-                  className="relative inline-flex h-1.5 w-1.5 rounded-full"
+                  className="relative inline-flex h-2 w-2 rounded-full"
                   style={{ background: C.success }}
                 />
               </span>
               <span className="text-[11px] font-medium" style={{ color: C.success }}>
-                3 new matches
+                {liveEvents === 0 ? "Live" : `${liveEvents} updates`}
               </span>
             </div>
             <button
@@ -109,29 +200,39 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="shrink-0 border-b border-border bg-bg px-6 pb-6 pt-4">
+        <div
+          className={cn(
+            "shrink-0 border-b border-border bg-bg px-6 pb-6 pt-4 transition-[box-shadow] duration-500",
+            statPulse && "ring-2 ring-inset"
+          )}
+          style={
+            statPulse
+              ? { boxShadow: `inset 0 0 0 1px ${C.success}55` }
+              : undefined
+          }
+        >
           <div className="mx-auto grid max-w-[900px] grid-cols-2 gap-2.5 md:grid-cols-4">
             <StatCard
               label="Proposals sent"
-              value={stats.sent}
+              value={<CountUpInt value={sent} />}
               accentColor={C.accent}
               icon={<Icon name="send" size={18} />}
             />
             <StatCard
               label="Reply rate"
-              value={`${replyRate}%`}
+              value={<CountUpRate value={replyRate} />}
               accentColor={C.purple}
               icon={<Icon name="mail" size={18} />}
             />
             <StatCard
               label="Win rate"
-              value={`${winRate}%`}
+              value={<CountUpRate value={winRate} />}
               accentColor={C.success}
               icon={<Icon name="target" size={18} />}
             />
             <StatCard
               label="Revenue won"
-              value={`$${(stats.revenue / 1000).toFixed(1)}k`}
+              value={`$${revenueK.toFixed(1)}k`}
               accentColor={C.teal}
               icon={<Icon name="trending" size={18} />}
             />

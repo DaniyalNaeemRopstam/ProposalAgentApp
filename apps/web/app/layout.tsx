@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono, Syne } from "next/font/google";
 import "./globals.css";
 import { cn } from "../src/lib/cn";
+import { AuthProvider } from "../src/context/AuthContext";
 import { QueryProvider } from "../src/providers/QueryProvider";
+import { AppShellProviders } from "../src/providers/AppShellProviders";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -39,7 +41,11 @@ export default function RootLayout({
       className={cn("dark", syne.variable, dmSans.variable, jetbrainsMono.variable)}
     >
       <body className={cn(dmSans.className, "font-sans antialiased")}>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <AppShellProviders>{children}</AppShellProviders>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

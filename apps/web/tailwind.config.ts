@@ -72,6 +72,10 @@ const config: Config = {
           "0%, 100%": { boxShadow: `0 0 20px ${C.accentGlow}` },
           "50%": { boxShadow: `0 0 32px ${C.accentGlow}, 0 0 48px ${C.accentGlow}` },
         },
+        heroFloat: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
       },
       animation: {
         fadeUp: "fadeUp 0.45s ease-out forwards",
@@ -80,6 +84,7 @@ const config: Config = {
         slideIn: "slideIn 0.4s ease-out forwards",
         slideUp: "slideUp 0.3s ease forwards",
         glow: "glow 2.2s ease-in-out infinite",
+        heroFloat: "heroFloat 5.5s ease-in-out infinite",
       },
     },
   },

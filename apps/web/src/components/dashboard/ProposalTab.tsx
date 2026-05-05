@@ -7,7 +7,8 @@ import { ScoreRing } from "@/components/ui/ScoreRing";
 import { Icon } from "@/components/dashboard/Icon";
 import { cn } from "@/lib/cn";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
-import { streamProposalContent } from "@/lib/streamProposal";
+import toast from "react-hot-toast";
+import { notifyHttpError, notifyNetworkError } from "@/lib/apiErrors";
 
 /** Lean job payload from GET /api/jobs/:id */
 type ApiJobRecord = Record<string, unknown> & {
@@ -21,18 +22,6 @@ type ApiJobRecord = Record<string, unknown> & {
   tags?: string[];
   client?: Record<string, unknown>;
 };
-
-interface GenerateEnvelope {
-  proposal: {
-    _id: string;
-    content?: string;
-    replyProbability?: number;
-    proposalScore?: number;
-  };
-  wordCount?: number;
-  replyProbability: number;
-  proposalScore: number;
-}
 
 function mapPlatformToMode(platform: string): "upwork" | "linkedin" | "email" {
   const p = platform.trim().toLowerCase();
@@ -104,6 +93,9 @@ export function ProposalTab() {
   const [proposalMongoId, setProposalMongoId] = useState<string | null>(null);
   const [replyProbability, setReplyProbability] = useState(68);
   const proposalRef = useRef<HTMLTextAreaElement>(null);
+  /** Wall-clock anchor for first ~2s “loading checklist” before streaming textarea. */
+  const [genStartedAt, setGenStartedAt] = useState<number | null>(null);
+  const [genTick, setGenTick] = useState(0);
 
   /** POST /generate before streaming completes */
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -136,21 +128,30 @@ export function ProposalTab() {
             ...authHeaders(),
           },
         });
-        const json = (await res.json()) as unknown;
         if (!res.ok) {
+          await notifyHttpError(res);
+          const jsonFail = (await res.json()) as unknown;
           const msg =
-            json &&
-            typeof json === "object" &&
-            "message" in json &&
-            typeof (json as { message: unknown }).message === "string"
-              ? (json as { message: string }).message
+            jsonFail &&
+            typeof jsonFail === "object" &&
+            jsonFail !== null &&
+            "message" in jsonFail &&
+            typeof (jsonFail as { message: unknown }).message === "string"
+              ? (jsonFail as { message: string }).message
               : "Unable to load job.";
           throw new Error(msg);
         }
+        const json = (await res.json()) as unknown;
         const data = parseEnvelope<ApiJobRecord>(json);
         if (!cancelled) setJob(data);
       } catch (e) {
         if (!cancelled) {
+          if (
+            e instanceof TypeError ||
+            (e instanceof Error && e.message.toLowerCase().includes("fetch"))
+          ) {
+            notifyNetworkError();
+          }
           setLoadError(e instanceof Error ? e.message : "Failed to load job.");
           setJob(null);
         }
@@ -182,48 +183,110 @@ export function ProposalTab() {
 
       try {
         setGenerating(true);
+        setGenStartedAt(Date.now());
+        setProposal("");
+        setProposalMongoId(null);
         const body = buildGenerateBody(sourceJob, jid);
         const res = await fetch(apiUrl("/api/proposals/generate"), {
           method: "POST",
           credentials: "include",
           headers: {
-            Accept: "application/json",
+            Accept: "text/event-stream",
             "Content-Type": "application/json",
             ...authHeaders(),
           },
           body: JSON.stringify(body),
         });
 
-        const json = (await res.json()) as unknown;
         if (!res.ok) {
-          const msg =
-            json &&
-            typeof json === "object" &&
-            "message" in json &&
-            typeof (json as { message: unknown }).message === "string"
-              ? (json as { message: string }).message
-              : "Proposal generation failed.";
+          await notifyHttpError(res);
+          const raw = await res.text();
+          let msg = "Proposal generation failed.";
+          try {
+            const json = JSON.parse(raw) as { message?: string };
+            if (typeof json.message === "string" && json.message.trim()) msg = json.message;
+          } catch {
+            if (raw.trim()) msg = raw.trim();
+          }
           throw new Error(msg);
         }
 
-        const envelope = parseEnvelope<GenerateEnvelope>(json);
-        const content = envelope.proposal?.content ?? "";
-        const rp = envelope.replyProbability ?? envelope.proposal.replyProbability ?? 68;
-        const id = envelope.proposal?._id ? String(envelope.proposal._id) : null;
+        const reader = res.body?.getReader();
+        if (!reader) {
+          throw new Error("Streaming response is not available in this environment.");
+        }
 
-        if (id) setProposalMongoId(id);
-        setReplyProbability(typeof rp === "number" && !Number.isNaN(rp) ? rp : 68);
-        setGenerating(false);
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        setProposal("");
-        await streamProposalContent(content, setProposal);
+        const flushSseBlocks = (raw: string): string => {
+          const chunks = raw.split("\n\n");
+          const incomplete = chunks.pop() ?? "";
+          for (const block of chunks) {
+            const line = block.trim();
+            if (!line.startsWith("data:")) continue;
+            let ev: Record<string, unknown>;
+            try {
+              ev = JSON.parse(line.slice(5).trim()) as Record<string, unknown>;
+            } catch {
+              continue;
+            }
+
+            const piece = ev.chunk;
+            if (typeof piece === "string" && piece.length > 0) {
+              setProposal((prev) => prev + piece);
+            }
+
+            if (ev.done === true) {
+              const id = ev.proposalId;
+              if (typeof id === "string" && id.trim()) setProposalMongoId(id.trim());
+
+              const rp = ev.replyProbability;
+              if (typeof rp === "number" && !Number.isNaN(rp)) {
+                setReplyProbability(rp);
+              }
+            }
+
+            const errMsg = ev.error;
+            if (typeof errMsg === "string" && errMsg.trim()) {
+              throw new Error(errMsg);
+            }
+          }
+          return incomplete;
+        };
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            buffer = flushSseBlocks(`${buffer}\n\n`);
+            break;
+          }
+          buffer = flushSseBlocks(buffer + decoder.decode(value, { stream: true }));
+        }
+        toast.success("Proposal generated ✓");
       } catch (err) {
-        setGenerating(false);
+        if (
+          err instanceof TypeError ||
+          (err instanceof Error && err.message.toLowerCase().includes("fetch"))
+        ) {
+          notifyNetworkError();
+        }
         setGenerateError(err instanceof Error ? err.message : "Proposal generation failed.");
+      } finally {
+        setGenerating(false);
+        setGenStartedAt(null);
       }
     },
     [mongoJobId]
   );
+
+  /** Tick while generating so elapsed time crosses the ~2s checklist boundary. */
+  useEffect(() => {
+    if (!generating) return;
+    const id = window.setInterval(() => setGenTick((x) => x + 1), 200);
+    return () => window.clearInterval(id);
+  }, [generating]);
 
   /** Auto-run once after job resolves for this route */
   const autoRanForKey = useRef<string | null>(null);
@@ -262,8 +325,9 @@ export function ProposalTab() {
         },
         body: JSON.stringify({ status: "sent" }),
       });
-      const json = await res.json();
       if (!res.ok) {
+        await notifyHttpError(res);
+        const json = await res.json().catch(() => ({}));
         const msg =
           json &&
           typeof json === "object" &&
@@ -273,7 +337,14 @@ export function ProposalTab() {
             : "Could not mark as sent.";
         throw new Error(msg);
       }
+      toast.success("Proposal sent ✓");
     } catch (e) {
+      if (
+        e instanceof TypeError ||
+        (e instanceof Error && e.message.toLowerCase().includes("fetch"))
+      ) {
+        notifyNetworkError();
+      }
       setMarkSentError(e instanceof Error ? e.message : "Could not mark as sent.");
     } finally {
       setMarkSentLoading(false);
@@ -288,7 +359,7 @@ export function ProposalTab() {
         <p className="mb-5 text-sm text-textMuted">
           Go to Job Matches and click &quot;Generate AI proposal&quot; on any job
         </p>
-        <Btn onClick={() => router.push("/jobs")}>
+        <Btn onClick={() => router.push("/dashboard/jobs")}>
           <Icon name="target" size={13} /> Browse job matches
         </Btn>
       </div>
@@ -310,7 +381,7 @@ export function ProposalTab() {
     return (
       <div className="rounded-xl border border-danger/40 bg-dangerDim/40 px-5 py-8 text-center">
         <p className="mb-5 text-danger">{loadError ?? "Could not load this job."}</p>
-        <Btn variant="ghost" onClick={() => router.push("/jobs")}>
+        <Btn variant="ghost" onClick={() => router.push("/dashboard/jobs")}>
           <Icon name="target" size={13} /> Back to jobs
         </Btn>
       </div>
@@ -319,6 +390,10 @@ export function ProposalTab() {
 
   const clientObj = job.client ?? {};
   const platformStr = typeof job.platform === "string" ? job.platform : "—";
+
+  void genTick;
+  const checklistPhase =
+    generating && genStartedAt !== null && Date.now() - genStartedAt < 2000;
 
   return (
     <div className="animate-slideUp">
@@ -349,12 +424,12 @@ export function ProposalTab() {
               : "—"}
           </div>
         </div>
-        <Btn variant="ghost" className="ml-auto text-xs" onClick={() => router.push("/jobs")}>
+        <Btn variant="ghost" className="ml-auto text-xs" onClick={() => router.push("/dashboard/jobs")}>
           ← Change job
         </Btn>
       </div>
 
-      {generating ? (
+      {checklistPhase ? (
         <div className="rounded-xl border border-border bg-surface px-8 py-8 text-center">
           <div className="mb-4 flex items-center justify-center gap-2.5">
             <span className="animate-pulse text-accent">
@@ -378,6 +453,24 @@ export function ProposalTab() {
               {step}
             </div>
           ))}
+        </div>
+      ) : generating ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-[13px] text-textMuted">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+            </span>
+            Streaming from Claude…
+          </div>
+          <textarea
+            ref={proposalRef}
+            rows={16}
+            value={proposal}
+            readOnly
+            placeholder="Awaiting tokens…"
+            className="w-full resize-y rounded-[10px] border border-border bg-surfaceHover px-3.5 py-3.5 text-sm leading-relaxed text-text outline-none placeholder:text-textDim focus:border-accent"
+          />
         </div>
       ) : (
         <div>
@@ -463,7 +556,7 @@ export function ProposalTab() {
               <button
                 type="button"
                 className="cursor-pointer border-0 bg-transparent p-0 text-xs text-accent hover:underline"
-                onClick={() => router.push("/sequences")}
+                onClick={() => router.push("/dashboard/sequences")}
               >
                 View sequences →
               </button>

@@ -1,9 +1,10 @@
 import { createApiClient } from "@proposalagent/api-client";
 import Constants from "expo-constants";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../constants/config";
+import { getStoredToken } from "./tokenStorage";
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
-  const token = await AsyncStorage.getItem("authToken");
+  const token = await getStoredToken();
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }
@@ -12,7 +13,7 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
 export function getApiBaseUrl(): string {
   const raw =
     (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ??
-    "http://localhost:5000";
+    API_URL;
   return String(raw).replace(/\/$/, "");
 }
 

@@ -11,6 +11,7 @@ import type {
 } from "../schemas/jobsSchemas";
 import { researchClientWithClaude, scoreJobWithClaude } from "../services/jobsAIService";
 import { ApiError } from "../utils/ApiError";
+import { emitNewJobMatch } from "../realtime/emitters";
 import { ok } from "../utils/ApiResponse";
 import { sendPushNotification } from "../utils/notifications";
 
@@ -172,6 +173,10 @@ export async function saveJob(req: Request, res: Response): Promise<void> {
     redFlags: result.redFlags,
     savedAt: new Date(),
   });
+
+  if (rounded > 80) {
+    emitNewJobMatch(req.user!._id.toString(), job.toObject());
+  }
 
   if (rounded > 85) {
     void (async () => {

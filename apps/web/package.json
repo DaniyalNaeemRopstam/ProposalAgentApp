@@ -15,11 +15,15 @@
     "@proposalagent/shared": "*",
     "@proposalagent/ui": "*",
     "@tanstack/react-query": "^5.100.9",
+    "jose": "^6.2.3",
     "next": "^14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.0",
     "react-native": "^0.76.3",
-    "react-native-web": "^0.19.13"
+    "react-native-web": "^0.19.13",
+    "socket.io-client": "^4.8.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

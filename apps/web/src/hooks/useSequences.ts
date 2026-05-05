@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { FollowUpSequence } from "@proposalagent/shared";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
+import { notifyHttpError } from "@/lib/apiErrors";
 
 function normalizeSequences(payload: unknown): FollowUpSequence[] {
   if (Array.isArray(payload)) return payload as FollowUpSequence[];
@@ -27,6 +28,7 @@ export function useSequences() {
       });
 
       if (!res.ok) {
+        await notifyHttpError(res);
         throw new Error("Failed to fetch sequences");
       }
 

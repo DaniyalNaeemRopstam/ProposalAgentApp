@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
+import { notifyHttpError } from "@/lib/apiErrors";
 
 // User stats from overview endpoint
 export interface UserStats {
@@ -13,7 +14,7 @@ export interface UserStats {
   replyRate: number;
 }
 
-// Monthly aggregation data  
+// Monthly aggregation data
 export interface MonthlyData {
   month: string;
   sent: number;
@@ -41,17 +42,23 @@ async function fetchAnalyticsOverview(): Promise<UserStats> {
     credentials: "include",
     headers: { Accept: "application/json", ...authHeaders() },
   });
-  if (!res.ok) throw new Error("Failed to fetch analytics overview");
+  if (!res.ok) {
+    await notifyHttpError(res);
+    throw new Error("Failed to fetch analytics overview");
+  }
   const raw = await res.json();
   return parseEnvelope<UserStats>(raw);
 }
 
 async function fetchAnalyticsMonthly(): Promise<MonthlyData[]> {
   const res = await fetch(apiUrl("/api/analytics/monthly"), {
-    credentials: "include", 
+    credentials: "include",
     headers: { Accept: "application/json", ...authHeaders() },
   });
-  if (!res.ok) throw new Error("Failed to fetch monthly analytics");
+  if (!res.ok) {
+    await notifyHttpError(res);
+    throw new Error("Failed to fetch monthly analytics");
+  }
   const raw = await res.json();
   return parseEnvelope<MonthlyData[]>(raw);
 }
@@ -61,7 +68,10 @@ async function fetchAnalyticsPlatforms(): Promise<PlatformData[]> {
     credentials: "include",
     headers: { Accept: "application/json", ...authHeaders() },
   });
-  if (!res.ok) throw new Error("Failed to fetch platform analytics");
+  if (!res.ok) {
+    await notifyHttpError(res);
+    throw new Error("Failed to fetch platform analytics");
+  }
   const raw = await res.json();
   return parseEnvelope<PlatformData[]>(raw);
 }
@@ -71,7 +81,10 @@ async function fetchAnalyticsInsights(): Promise<AIInsight[]> {
     credentials: "include",
     headers: { Accept: "application/json", ...authHeaders() },
   });
-  if (!res.ok) throw new Error("Failed to fetch AI insights");
+  if (!res.ok) {
+    await notifyHttpError(res);
+    throw new Error("Failed to fetch AI insights");
+  }
   const raw = await res.json();
   return parseEnvelope<AIInsight[]>(raw);
 }
@@ -110,7 +123,7 @@ export function useAnalyticsInsights() {
 
 export function useRefreshInsights() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: fetchAnalyticsInsights,
     onSuccess: (data) => {

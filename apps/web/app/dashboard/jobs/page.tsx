@@ -4,37 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useJobs } from "@/hooks/useJobs";
+import { JobSkeleton } from "@/components/skeletons/JobSkeleton";
 import { Btn } from "@/components/ui/Btn";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { Tag } from "@/components/ui/Tag";
 import { Icon } from "@/components/dashboard/Icon";
-import { cn } from "@/lib/cn";
+import { apiUrl, authHeaders } from "@/lib/api";
+import { notifyHttpError } from "@/lib/apiErrors";
+import toast from "react-hot-toast";
 import type { Job } from "@proposalagent/shared";
-
-function SkeletonJobCard() {
-  return (
-    <div className="animate-pulse rounded-xl border border-border bg-surface p-5">
-      <div className="flex gap-3.5">
-        <div className="h-12 w-12 rounded-full bg-surfaceHover" />
-        <div className="min-w-0 flex-1">
-          <div className="mb-3 h-4 w-3/4 rounded bg-surfaceHover" />
-          <div className="mb-4 flex gap-4">
-            <div className="h-3 w-20 rounded bg-surfaceHover" />
-            <div className="h-3 w-16 rounded bg-surfaceHover" />
-          </div>
-          <div className="mb-4 h-3 w-full rounded bg-surfaceHover" />
-          <div className="mb-4 flex gap-1.5">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-5 w-14 rounded-full bg-surfaceHover" />
-            ))}
-          </div>
-          <div className="h-20 rounded-lg bg-surfaceHover" />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function JobsPage() {
   const router = useRouter();
@@ -53,24 +32,35 @@ export default function JobsPage() {
       clientCountry: string;
       tags: string[];
     }) => {
-      const res = await fetch("/api/jobs/save", {
+      const res = await fetch(apiUrl("/api/jobs/save"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Failed to save job");
+      if (!res.ok) {
+        await notifyHttpError(res);
+        throw new Error("Failed to save job");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       setCustomJob("");
       setShowCustom(false);
+      toast.success("Job saved — analyzing…");
     },
   });
 
   const handleGenerateProposal = (job: Job) => {
             const jobId = (job as any)._id || (job as any).id || String(Math.random());
-    router.push(`/proposals?jobId=${encodeURIComponent(jobId)}`);
+    router.push(
+      `/dashboard/proposals?jobId=${encodeURIComponent(jobId)}`
+    );
   };
 
   const handlePasteJob = async () => {
@@ -141,11 +131,7 @@ export default function JobsPage() {
       )}
 
       {isLoading ? (
-        <div className="flex flex-col gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonJobCard key={i} />
-          ))}
-        </div>
+        <JobSkeleton />
       ) : jobs.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-12 text-center">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-surfaceHover">

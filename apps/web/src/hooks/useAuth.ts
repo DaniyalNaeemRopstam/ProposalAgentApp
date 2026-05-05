@@ -1,28 +1,19 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
-import type { ProjectReference } from "@proposalagent/shared";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiUrl, authHeaders } from "@/lib/api";
+import { useAuth, type AuthUser } from "@/context/AuthContext";
 
-export interface User {
-  _id: string;
-  name: string;
-  email: string;
-  companyName: string;
-  plan: "free" | "solo" | "pro" | "enterprise";
-  avatar?: string;
-  voiceProfile?: string;
-  projectLibrary: ProjectReference[];
-}
+export type User = AuthUser;
 
-export interface ProfileUpdateData {
+export type ProfileUpdateData = {
   name?: string;
   email?: string;
   companyName?: string;
-}
+};
 
 export interface VoiceProfileData {
-  samples: string; // Newline-separated samples
+  samples: string;
 }
 
 export interface ProjectLibraryItem {
@@ -33,22 +24,15 @@ export interface ProjectLibraryItem {
   budget: string;
 }
 
-async function fetchMe(): Promise<User> {
-  const res = await fetch(apiUrl("/api/auth/me"), {
-    credentials: "include",
-    headers: { Accept: "application/json", ...authHeaders() },
-  });
-  if (!res.ok) throw new Error("Failed to fetch user profile");
-  const raw = await res.json();
-  return parseEnvelope<User>(raw);
-}
-
 export function useMe() {
-  return useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: fetchMe,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  const a = useAuth();
+  return {
+    data: a.user,
+    isLoading: a.isLoading,
+    isError: !!a.authError && !a.isLoading,
+    error: a.authError,
+    refetch: a.refreshUser,
+  };
 }
 
 export function useUpdateProfile() {
@@ -74,7 +58,7 @@ export function useUpdateProfile() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
     },
   });
 }
@@ -102,7 +86,7 @@ export function useSaveVoiceProfile() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
     },
   });
 }
@@ -130,7 +114,7 @@ export function useAddProject() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
     },
   });
 }
@@ -156,7 +140,7 @@ export function useRemoveProject() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
     },
   });
 }

@@ -1,28 +1,39 @@
-export default {
+module.exports = {
   expo: {
     name: "ProposalAgent",
-    slug: "proposalagent",
+    slug: "proposal-agent",
     scheme: "proposalagent",
     version: "1.0.0",
     orientation: "portrait",
     userInterfaceStyle: "dark",
+    icon: "./assets/icon.png",
     splash: {
       resizeMode: "contain",
-      backgroundColor: "#0A0C10"
+      backgroundColor: "#07090F",
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.proposalagent.mobile"
+      bundleIdentifier: "com.danielforge.proposalagent",
     },
     android: {
+      package: "com.danielforge.proposalagent",
       adaptiveIcon: {
-        backgroundColor: "#0A0C10"
+        foregroundImage: "./assets/icon.png",
+        backgroundColor: "#07090F",
       },
-      package: "com.proposalagent.mobile"
     },
-    plugins: ["expo-router"],
+    plugins: [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          sounds: [],
+        },
+      ],
+    ],
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000",
     },
-  }
+  },
 };

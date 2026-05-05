@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
+import { notifyHttpError } from "@/lib/apiErrors";
 
 /** Mirrors `server/src/models/PipelineDeal.ts` — keep in sync with API */
 export const PIPELINE_STAGE_ORDER = [
@@ -35,7 +36,7 @@ export type PipelineListPayload = {
 };
 
 function normalizeGrouped(
-  grouped: Partial<Record<PipelineStageId, PipelineDealRow[]>>,
+  grouped: Partial<Record<PipelineStageId, PipelineDealRow[]>>
 ): Record<PipelineStageId, PipelineDealRow[]> {
   const out = {} as Record<PipelineStageId, PipelineDealRow[]>;
   for (const stage of PIPELINE_STAGE_ORDER) {
@@ -44,12 +45,16 @@ function normalizeGrouped(
   return out;
 }
 
-async function fetchPipeline(): Promise<{ grouped: Record<PipelineStageId, PipelineDealRow[]>; totalValue: number }> {
+async function fetchPipeline(): Promise<{
+  grouped: Record<PipelineStageId, PipelineDealRow[]>;
+  totalValue: number;
+}> {
   const res = await fetch(apiUrl("/api/pipeline"), {
     credentials: "include",
     headers: { Accept: "application/json", ...authHeaders() },
   });
   if (!res.ok) {
+    await notifyHttpError(res);
     throw new Error("Failed to load pipeline");
   }
   const raw = await res.json();

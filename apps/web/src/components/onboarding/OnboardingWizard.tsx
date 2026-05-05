@@ -316,7 +316,7 @@ export function OnboardingWizard() {
       await saveVoice.mutateAsync({ samples: step3Data.sampleProposal });
       
       // Redirect to dashboard
-      router.push("/jobs");
+      router.push("/dashboard/jobs");
     } catch (error) {
       console.error("Onboarding failed:", error);
       setIsCompleting(false);

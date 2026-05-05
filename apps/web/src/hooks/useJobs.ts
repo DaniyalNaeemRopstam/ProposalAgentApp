@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Job } from "@proposalagent/shared";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
+import { notifyHttpError } from "@/lib/apiErrors";
 
 function normalizeJobs(payload: unknown): Job[] {
   if (Array.isArray(payload)) return payload as Job[];
@@ -27,6 +28,7 @@ export function useJobs() {
       });
 
       if (!res.ok) {
+        await notifyHttpError(res);
         throw new Error("Failed to fetch jobs");
       }
 

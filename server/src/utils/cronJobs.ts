@@ -1,6 +1,7 @@
 import { Proposal } from "../models/Proposal";
 import { Sequence } from "../models/Sequence";
 import { User } from "../models/User";
+import { emitSequenceDue } from "../realtime/emitters";
 import { sendPushNotification } from "./notifications";
 
 const SIX_HOURS = 6 * 60 * 60 * 1_000;
@@ -32,8 +33,8 @@ async function syncStoppedSequences(): Promise<void> {
     }
   );
 
-  if (result.modifiedCount > 0) {
-    console.log(
+  if (result.modifiedCount > 0 && process.env.NODE_ENV !== "production") {
+    console.info(
       `[cron] auto-stopped ${result.modifiedCount} sequence(s) — proposal replied/won`
     );
   }
@@ -61,6 +62,13 @@ async function processDueMessages(): Promise<void> {
       .sort((a, b) => a.day - b.day);
 
     for (const msg of dueMsgs) {
+      emitSequenceDue(String(seq.userId), {
+        _id: seq._id,
+        jobTitle: seq.jobTitle,
+        platform: seq.platform,
+        message: { day: msg.day, scheduledAt: msg.scheduledAt },
+      });
+
       const u = await User.findById(seq.userId).select("pushToken").lean();
       if (u?.pushToken) {
         void sendPushNotification(
@@ -86,8 +94,8 @@ async function processDueMessages(): Promise<void> {
     await seq.save();
   }
 
-  if (sent > 0 || allComplete > 0) {
-    console.log(
+  if ((sent > 0 || allComplete > 0) && process.env.NODE_ENV !== "production") {
+    console.info(
       `[cron] processed ${sent} due follow-up message(s); ${allComplete} sequence(s) completed`
     );
   }
@@ -119,7 +127,7 @@ export function startCronJobs(): void {
   // Allow the process to exit cleanly even if interval is pending
   timer.unref?.();
 
-  console.log("[cron] follow-up sequence scheduler started (6h interval)");
+  console.info("[cron] follow-up sequence scheduler started (6h interval)");
 }
 
 /** Stop the cron loop (useful in tests). */

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 /**
- * Legacy route: `/proposal?jobId=` → `/proposals?jobId=`
+ * Legacy route: `/dashboard/proposal?jobId=` → `/dashboard/proposals?jobId=`
  */
 export default function ProposalRedirectPage({
   searchParams,
@@ -11,5 +11,5 @@ export default function ProposalRedirectPage({
   const raw = searchParams.jobId;
   const jobId = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
   const qs = jobId ? `?jobId=${encodeURIComponent(jobId)}` : "";
-  redirect(`/proposals${qs}`);
+  redirect(`/dashboard/proposals${qs}`);
 }

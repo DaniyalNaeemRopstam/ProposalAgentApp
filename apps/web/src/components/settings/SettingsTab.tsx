@@ -546,7 +546,7 @@ export function SettingsTab() {
   const activeTab = (searchParams.get("tab") || "profile") as TabId;
 
   const handleTabChange = (tabId: TabId) => {
-    router.push(`/settings?tab=${tabId}`);
+    router.push(`/dashboard/settings?tab=${tabId}`);
   };
 
   return (

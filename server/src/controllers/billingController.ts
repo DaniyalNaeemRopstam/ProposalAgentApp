@@ -17,7 +17,20 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function webAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "http://localhost:3000";
+  const explicit =
+    process.env.APP_WEB_URL?.trim() ||
+    process.env.WEB_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.APP_URL?.trim();
+
+  if (process.env.NODE_ENV === "production") {
+    if (!explicit) {
+      throw new ApiError(500, "APP_WEB_URL must be set in production (your live dashboard URL).");
+    }
+    return explicit.replace(/\/$/, "");
+  }
+
+  return (explicit ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
 /** Start of current month in UTC. */

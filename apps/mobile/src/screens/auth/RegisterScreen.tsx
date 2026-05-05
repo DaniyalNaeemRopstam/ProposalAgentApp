@@ -11,7 +11,8 @@ import { Link, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
-import { useRegister } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuth";
+import { offerBiometricEnrollment } from "../../lib/biometricPrompt";
 import { colors } from "../../theme/colors";
 
 export function RegisterScreen() {
@@ -22,7 +23,10 @@ export function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const register = useRegister();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const { register: registerAccount } = useAuth();
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -55,22 +59,24 @@ export function RegisterScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validateForm()) return;
-    
-    register.mutate(
-      {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      await registerAccount({
         name: name.trim(),
         email: email.trim(),
         companyName: companyName.trim(),
         password,
-      },
-      {
-        onSuccess: () => {
-          router.replace("/(tabs)");
-        },
-      }
-    );
+      });
+      await offerBiometricEnrollment();
+      router.replace("/(tabs)");
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Registration failed.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -141,26 +147,24 @@ export function RegisterScreen() {
                 autoComplete="new-password"
               />
 
-              {register.error && (
-                <Text style={styles.errorMessage}>
-                  {register.error.message}
-                </Text>
-              )}
+              {submitError ? (
+                <Text style={styles.errorMessage}>{submitError}</Text>
+              ) : null}
 
               <Button
                 title="Create Account"
                 onPress={handleRegister}
-                loading={register.isPending}
+                loading={submitting}
                 style={styles.registerButton}
               />
 
-              {register.isError ? (
+              {submitError ? (
                 <Button
                   title="Retry"
                   variant="ghost"
                   onPress={handleRegister}
-                  loading={register.isPending}
-                  disabled={register.isPending}
+                  loading={submitting}
+                  disabled={submitting}
                   style={styles.retryButton}
                 />
               ) : null}

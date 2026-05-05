@@ -17,11 +17,11 @@ export function apiUrl(path: string): string {
 export function authHeaders(): HeadersInit {
   if (typeof window === "undefined") return {};
   const token =
-    localStorage.getItem("token") ??
-    localStorage.getItem("authToken") ??
-    localStorage.getItem("pa_token");
-  if (!token?.trim()) return {};
-  return { Authorization: `Bearer ${token.trim()}` };
+    localStorage.getItem("pa_token")?.trim() ??
+    localStorage.getItem("token")?.trim() ??
+    localStorage.getItem("authToken")?.trim();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
 }
 
 export function parseEnvelope<T>(json: unknown): T {

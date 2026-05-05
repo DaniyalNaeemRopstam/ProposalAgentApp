@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSequences } from "@/hooks/useSequences";
 import { Btn } from "@/components/ui/Btn";
 import { Icon } from "@/components/dashboard/Icon";
+import { SequenceSkeleton } from "@/components/skeletons/SequenceSkeleton";
 import { cn } from "@/lib/cn";
 import { apiUrl, authHeaders } from "@/lib/api";
 import type { FollowUpSequence } from "@proposalagent/shared";
@@ -164,26 +165,8 @@ export function SequencesTab() {
   if (isLoading) {
     return (
       <div className="animate-slideUp">
-        <p className="mb-4 text-[13px] text-textMuted">Loading follow-up sequences...</p>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="mb-2.5 animate-pulse rounded-xl border border-border bg-surface px-5 py-4"
-          >
-            <div className="mb-2.5 flex justify-between">
-              <div className="h-4 w-48 rounded bg-surfaceHover" />
-              <div className="h-5 w-20 rounded-full bg-surfaceHover" />
-            </div>
-            <div className="mb-3 flex gap-5">
-              <div className="h-3 w-24 rounded bg-surfaceHover" />
-              <div className="h-3 w-32 rounded bg-surfaceHover" />
-            </div>
-            <div className="flex gap-2">
-              <div className="h-6 w-24 rounded bg-surfaceHover" />
-              <div className="h-6 w-20 rounded bg-surfaceHover" />
-            </div>
-          </div>
-        ))}
+        <p className="mb-4 text-[13px] text-textMuted">Loading follow-up sequences…</p>
+        <SequenceSkeleton />
       </div>
     );
   }

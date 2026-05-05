@@ -9,6 +9,12 @@ type Bucket = { count: number; windowStart: number };
 
 const buckets = new Map<string, Bucket>();
 
+/** Test-only: clears in-memory AI hourly buckets between Jest specs. */
+export function resetAiRateBucketsForTests(): void {
+  if (process.env.NODE_ENV !== "test") return;
+  buckets.clear();
+}
+
 const PAID_PLANS = new Set(["solo", "pro", "enterprise"]);
 
 function prune(now: number): void {

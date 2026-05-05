@@ -20,7 +20,10 @@ import { Icon } from "@/components/dashboard/Icon";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
 import type { PipelineDealRow, PipelineStageId } from "@/hooks/usePipeline";
 import { PIPELINE_STAGE_ORDER, usePipeline } from "@/hooks/usePipeline";
+import toast from "react-hot-toast";
 import { apiUrl, authHeaders } from "@/lib/api";
+import { notifyHttpError } from "@/lib/apiErrors";
+import { PipelineSkeleton } from "@/components/skeletons/PipelineSkeleton";
 import { cn } from "@/lib/cn";
 
 /** Column accents — MVP palette */
@@ -237,8 +240,14 @@ export function PipelineTab() {
         },
         body: JSON.stringify({ stage }),
       });
-      if (!res.ok) throw new Error(await apiErrorMessage(res));
+      if (!res.ok) {
+        await notifyHttpError(res);
+        throw new Error(await apiErrorMessage(res));
+      }
       return res.json();
+    },
+    onSuccess: (_data, { stage }) => {
+      if (stage === "won") toast.success("Deal won 🎉");
     },
     onMutate: async ({ id, stage }) => {
       setMoveErr(null);
@@ -302,7 +311,10 @@ export function PipelineTab() {
           nextAction: body.nextAction.trim() || undefined,
         }),
       });
-      if (!res.ok) throw new Error(await apiErrorMessage(res));
+      if (!res.ok) {
+        await notifyHttpError(res);
+        throw new Error(await apiErrorMessage(res));
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -377,25 +389,17 @@ export function PipelineTab() {
   if (isLoading || !grouped) {
     return (
       <div className="animate-slideUp">
-        <div className="mb-5 flex animate-pulse items-center gap-6">
-          <div className="h-10 w-[42%] max-w-xl rounded-lg bg-border" />
-          <div className="ml-auto h-9 w-28 rounded-full bg-border" />
+        <div className="mb-5 flex items-center gap-6">
+          <div
+            className="h-10 w-[42%] max-w-xl rounded-lg bg-surfaceHover animate-pulse"
+            style={{ animationDuration: "2s" }}
+          />
+          <div
+            className="ml-auto h-9 w-28 shrink-0 rounded-full bg-surfaceHover animate-pulse"
+            style={{ animationDuration: "2s" }}
+          />
         </div>
-        <div className="-mx-1 flex gap-3 overflow-hidden pb-2">
-          {PIPELINE_STAGE_ORDER.map((stage) => (
-            <div
-              key={stage}
-              className="flex w-[268px] shrink-0 flex-col rounded-xl border border-border bg-[#0f1116]"
-            >
-              <div className="h-11 border-b border-border px-4" />
-              <div className="space-y-3 p-3">
-                {[1, 2].map((i) => (
-                  <div key={i} className="h-[120px] rounded-xl border border-border bg-surface" />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <PipelineSkeleton />
       </div>
     );
   }
