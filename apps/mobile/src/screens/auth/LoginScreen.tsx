@@ -8,6 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { Link, router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { useLogin } from "../../hooks/useAuth";
@@ -61,73 +62,90 @@ export function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>
-              Sign in to your ProposalAgent account
-            </Text>
-          </View>
-
-          <View style={styles.form}>
-            <TextInput
-              label="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              error={emailError}
-              placeholder="your@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-
-            <TextInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              error={passwordError}
-              placeholder="Enter your password"
-              secureTextEntry
-              autoComplete="current-password"
-            />
-
-            {login.error && (
-              <Text style={styles.errorMessage}>
-                {login.error.message}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>
+                Sign in to your ProposalAgent account
               </Text>
-            )}
+            </View>
 
-            <Button
-              title="Sign In"
-              onPress={handleLogin}
-              loading={login.isPending}
-              style={styles.loginButton}
-            />
-          </View>
+            <View style={styles.form}>
+              <TextInput
+                label="Email Address"
+                value={email}
+                onChangeText={setEmail}
+                error={emailError}
+                placeholder="your@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Don't have an account?{" "}
-              <Link href="/auth/register" style={styles.link}>
-                Sign up
-              </Link>
-            </Text>
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                error={passwordError}
+                placeholder="Enter your password"
+                secureTextEntry
+                autoComplete="current-password"
+              />
+
+              {login.error && (
+                <Text style={styles.errorMessage}>
+                  {login.error.message}
+                </Text>
+              )}
+
+              <Button
+                title="Sign In"
+                onPress={handleLogin}
+                loading={login.isPending}
+                style={styles.loginButton}
+              />
+
+              {login.isError ? (
+                <Button
+                  title="Retry"
+                  variant="ghost"
+                  onPress={handleLogin}
+                  loading={login.isPending}
+                  disabled={login.isPending}
+                  style={styles.retryButton}
+                />
+              ) : null}
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Don't have an account?{" "}
+                <Link href="/auth/register" style={styles.link}>
+                  Sign up
+                </Link>
+              </Text>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -163,6 +181,9 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: 8,
+  },
+  retryButton: {
+    marginTop: 4,
   },
   errorMessage: {
     color: colors.danger,

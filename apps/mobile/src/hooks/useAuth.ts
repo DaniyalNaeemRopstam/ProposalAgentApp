@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiUrl, parseEnvelope } from "../lib/api";
+import { serverApi, serverApiPublic } from "../lib/api";
 import type { ProjectReference } from "@proposalagent/shared";
+import { syncStoredPushTokenToServer } from "../lib/pushNotifications";
 
 export interface User {
   _id: string;
@@ -14,26 +15,15 @@ export interface User {
   projectLibrary: ProjectReference[];
 }
 
-async function getAuthHeaders() {
-  const token = await AsyncStorage.getItem("authToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function fetchMe(): Promise<User> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(apiUrl("/api/auth/me"), {
-    headers: { Accept: "application/json", ...headers },
-  });
-  if (!res.ok) throw new Error("Failed to fetch user profile");
-  const raw = await res.json();
-  return parseEnvelope<User>(raw);
+  return serverApi.request<User>("/api/auth/me");
 }
 
 export function useMe() {
   return useQuery({
     queryKey: ["auth", "me"],
     queryFn: fetchMe,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -42,26 +32,16 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      const res = await fetch(apiUrl("/api/auth/login"), {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        const message = json?.message || "Login failed";
-        throw new Error(message);
-      }
-      const data = await res.json();
-      const { token } = parseEnvelope<{ token: string; user: User }>(data);
+      const { token } = await serverApiPublic.request<{ token: string; user: User }>(
+        "/api/auth/login",
+        { method: "POST", body: credentials }
+      );
       await AsyncStorage.setItem("authToken", token);
-      return data;
+      return { token };
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      await syncStoredPushTokenToServer();
     },
   });
 }
@@ -76,26 +56,16 @@ export function useRegister() {
       password: string;
       companyName: string;
     }) => {
-      const res = await fetch(apiUrl("/api/auth/register"), {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        const message = json?.message || "Registration failed";
-        throw new Error(message);
-      }
-      const response = await res.json();
-      const { token } = parseEnvelope<{ token: string; user: User }>(response);
+      const { token } = await serverApiPublic.request<{ token: string; user: User }>(
+        "/api/auth/register",
+        { method: "POST", body: data }
+      );
       await AsyncStorage.setItem("authToken", token);
-      return response;
+      return { token };
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      await syncStoredPushTokenToServer();
     },
   });
 }

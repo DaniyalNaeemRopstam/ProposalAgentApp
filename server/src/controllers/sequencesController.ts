@@ -11,8 +11,20 @@ import type {
 import { generateFollowUpMessages, scheduledDate } from "../services/sequenceService";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
+import { sendPushNotification } from "../utils/notifications";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function notifyProposalMarkedSentPush(userId: mongoose.Types.ObjectId): Promise<void> {
+  const u = await User.findById(userId).select("pushToken").lean();
+  if (!u?.pushToken) return;
+  await sendPushNotification(
+    u.pushToken,
+    "✅ Proposal sent!",
+    "Follow-up sequence started",
+    { type: "sequence" }
+  ).catch(() => void 0);
+}
 
 async function findOwnedSequence(id: string, userId: mongoose.Types.ObjectId) {
   const seq = await Sequence.findOne({ _id: id, userId });
@@ -52,6 +64,7 @@ export async function markProposalSent(req: Request, res: Response): Promise<voi
   // Bail out if a sequence already exists for this proposal
   const existing = await Sequence.findOne({ proposalId: proposal._id });
   if (existing) {
+    void notifyProposalMarkedSentPush(req.user!._id);
     res.json(
       ok({
         proposal: proposal.toObject(),
@@ -98,6 +111,8 @@ export async function markProposalSent(req: Request, res: Response): Promise<voi
     viewed: false,
     messages,
   });
+
+  void notifyProposalMarkedSentPush(req.user!._id);
 
   res.status(201).json(
     ok({

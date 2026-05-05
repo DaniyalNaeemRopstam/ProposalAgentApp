@@ -7,10 +7,12 @@ import { jobsRouter } from "./jobs";
 import { pipelineRouter } from "./pipeline";
 import { proposalsRouter } from "./proposals";
 import { sequencesRouter } from "./sequences";
+import { usersRouter } from "./users";
 
 export function registerRoutes(app: Express): void {
   app.use("/health", healthRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api/users", usersRouter);
   app.use("/api/jobs", jobsRouter);
   app.use("/api/proposals", proposalsRouter);
   app.use("/api/sequences", sequencesRouter);

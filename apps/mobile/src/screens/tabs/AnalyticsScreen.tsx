@@ -1,102 +1,350 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
   ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from "react-native";
+import Svg, { Rect } from "react-native-svg";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  type AIInsight,
+  type MonthlyData,
+  useAnalyticsInsights,
+  useAnalyticsMonthly,
+  useAnalyticsOverview,
+  useAnalyticsPlatforms,
+  useRefreshAllAnalytics,
+} from "../../hooks/useAnalytics";
+import { Button } from "../../components/ui/Button";
 import { colors } from "../../theme/colors";
+import { fonts } from "../../theme/fonts";
 
-export function AnalyticsScreen() {
-  const platformData = [
-    { label: "Upwork", val: 14, pct: 61, color: colors.success },
-    { label: "LinkedIn", val: 6, pct: 26, color: colors.accent },
-    { label: "Wellfound", val: 3, pct: 13, color: colors.purple },
-  ];
+const INSIGHT_BORDER: Record<AIInsight["type"], string> = {
+  positive: colors.success,
+  warning: colors.warn,
+  suggestion: colors.accentText,
+};
 
-  const tierData = [
-    { label: "Tier A ($2k–$5k)", rate: 22, color: colors.teal },
-    { label: "Tier B ($5k–$15k)", rate: 18, color: colors.accent },
-    { label: "Tier C ($15k–$50k)", rate: 8, color: colors.purple },
-  ];
+const STAT_GAP = 12;
 
-  const insights = [
-    {
-      type: "positive",
-      text: "Proposals under 180 words have 2.4x higher reply rate than longer ones",
-    },
-    {
-      type: "positive", 
-      text: "Jobs posted under 2 hours ago have 3x higher win rate — apply faster",
-    },
-    {
-      type: "suggestion",
-      text: "Mentioning government client experience increases Tier C shortlist rate by 40%",
-    },
-  ];
+type StatTile = {
+  key: string;
+  label: string;
+  value: string;
+  hint?: string;
+};
+
+function formatMonthLabel(raw: string): string {
+  const m = raw.match(/^(\d{4})-(\d{2})/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    return d.toLocaleString("en-US", { month: "short" });
+  }
+  if (raw.length >= 3) return raw.slice(0, 3);
+  return raw;
+}
+
+function parsePct(raw: string): number {
+  const n = Number(String(raw).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+}
+
+function lastUpdatedMinutesAgo(timestamps: number[]): string {
+  const ts = Math.max(0, ...timestamps.filter((t) => t > 0));
+  if (!ts) return "—";
+  const mins = Math.floor((Date.now() - ts) / 60_000);
+  if (mins < 1) return "just now";
+  return `${mins} min ago`;
+}
+
+function MonthlyBars(props: {
+  data: MonthlyData[];
+  chartW: number;
+}) {
+  const PAD_TOP = 8;
+  const PLOT_H = 132;
+  const svgH = PAD_TOP + PLOT_H;
+
+  const n = Math.max(1, props.data.length);
+  const maxSent = Math.max(1, ...props.data.map((d) => d.sent));
+  const slotW = props.chartW / n;
+  const baseY = PAD_TOP + PLOT_H;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <Svg width={props.chartW} height={svgH}>
+      {props.data.map((m, i) => {
+        const x = i * slotW + slotW * 0.18;
+        const barW = slotW * 0.64;
+        const hSent = (m.sent / maxSent) * PLOT_H;
+        const wonFrac = m.sent > 0 ? Math.min(1, m.won / m.sent) : 0;
+        const hWon = hSent * wonFrac;
+        return (
+          <React.Fragment key={m.month}>
+            <Rect
+              x={x}
+              y={baseY - hSent}
+              width={barW}
+              height={hSent}
+              rx={4}
+              ry={4}
+              fill={colors.textDim}
+              opacity={0.45}
+            />
+            <Rect
+              x={x}
+              y={baseY - hWon}
+              width={barW}
+              height={hWon}
+              rx={4}
+              ry={4}
+              fill={colors.success}
+            />
+          </React.Fragment>
+        );
+      })}
+    </Svg>
+  );
+}
+
+function InsightCard({ insight }: { insight: AIInsight }) {
+  return (
+    <View
+      style={[
+        styles.insightCard,
+        { borderLeftColor: INSIGHT_BORDER[insight.type] },
+      ]}
+    >
+      <Text style={styles.insightText}>{insight.text}</Text>
+    </View>
+  );
+}
+
+export function AnalyticsScreen() {
+  const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const horizontalPad = 16;
+  const innerCardPad = 16;
+  const chartW = winW - horizontalPad * 2 - innerCardPad * 2;
+
+  const overview = useAnalyticsOverview();
+  const monthly = useAnalyticsMonthly();
+  const platforms = useAnalyticsPlatforms();
+  const insights = useAnalyticsInsights();
+  const refreshAll = useRefreshAllAnalytics();
+
+  const statTiles: StatTile[] = useMemo(() => {
+    const o = overview.data;
+    if (!o) return [];
+    return [
+      {
+        key: "sent",
+        label: "Proposals sent",
+        value: String(o.proposalsSent),
+      },
+      {
+        key: "replies",
+        label: "Replies",
+        value: String(o.repliesReceived),
+      },
+      {
+        key: "won",
+        label: "Projects won",
+        value: String(o.projectsWon),
+      },
+      {
+        key: "win",
+        label: "Win rate",
+        value:
+          typeof o.winRate === "number" && !Number.isNaN(o.winRate)
+            ? `${o.winRate.toFixed(1)}%`
+            : "—",
+      },
+    ];
+  }, [overview.data]);
+
+  const tilesWithWidth = Math.max(
+    0,
+    (winW - horizontalPad * 2 - STAT_GAP) / 2
+  );
+
+  const lastLbl = lastUpdatedMinutesAgo([
+    overview.dataUpdatedAt,
+    monthly.dataUpdatedAt,
+    platforms.dataUpdatedAt,
+    insights.dataUpdatedAt,
+  ]);
+
+  const isBootLoading =
+    (overview.isLoading && !overview.data) ||
+    (monthly.isLoading && !monthly.data) ||
+    (platforms.isLoading && !platforms.data) ||
+    (insights.isLoading && !insights.data);
+
+  const analyticsError =
+    overview.isError || monthly.isError || platforms.isError || insights.isError;
+
+  const errMsg = [
+    overview.error,
+    monthly.error,
+    platforms.error,
+    insights.error,
+  ].find((e) => e instanceof Error)?.message;
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 },
+      ]}
+      nestedScrollEnabled
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshAll.isPending}
+          onRefresh={() => refreshAll.mutate()}
+          tintColor={colors.accent}
+        />
+      }
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Analytics</Text>
-        <Text style={styles.subtitle}>Performance insights and metrics</Text>
+        <Text style={styles.subtitle}>Performance overview</Text>
       </View>
 
-      <View style={styles.row}>
-        <View style={[styles.card, styles.halfCard]}>
-          <Text style={styles.cardTitle}>PROPOSALS BY PLATFORM</Text>
-          {platformData.map((item) => (
-            <View key={item.label} style={styles.chartItem}>
-              <View style={styles.chartRow}>
-                <Text style={styles.chartLabel}>{item.label}</Text>
-                <Text style={styles.chartValue}>{item.val} sent · {item.pct}%</Text>
-              </View>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { backgroundColor: item.color, width: `${item.pct}%` },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
+      {analyticsError ? (
+        <View style={styles.errRow}>
+          <Text style={styles.errBanner}>
+            {errMsg ?? "Some analytics failed to load."}
+          </Text>
+          <Button
+            title="Retry"
+            variant="ghost"
+            onPress={() => refreshAll.mutate()}
+            loading={refreshAll.isPending}
+          />
         </View>
+      ) : null}
 
-        <View style={[styles.card, styles.halfCard]}>
-          <Text style={styles.cardTitle}>WIN RATE BY BUDGET TIER</Text>
-          {tierData.map((item) => (
-            <View key={item.label} style={styles.chartItem}>
-              <View style={styles.chartRow}>
-                <Text style={styles.chartLabel}>{item.label}</Text>
-                <Text style={[styles.chartValue, { color: item.color, fontWeight: "600" }]}>
-                  {item.rate}% win rate
-                </Text>
-              </View>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { backgroundColor: item.color, width: `${item.rate * 4}%` },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
+      {isBootLoading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator color={colors.accent} />
         </View>
+      ) : null}
+
+      {!isBootLoading &&
+      !analyticsError &&
+      overview.data &&
+      overview.data.proposalsSent === 0 ? (
+        <Text style={[styles.emptyNote, styles.emptyNoteBottom]}>
+          No proposal activity recorded yet — send your first proposal to see
+          trends here.
+        </Text>
+      ) : null}
+
+      <Text style={styles.sectionTitle}>Key metrics</Text>
+      <FlatList
+        data={statTiles}
+        numColumns={2}
+        scrollEnabled={false}
+        keyExtractor={(i) => i.key}
+        columnWrapperStyle={styles.statsRow}
+        contentContainerStyle={styles.statsList}
+        renderItem={({ item }) => (
+          <View style={[styles.statTile, { width: tilesWithWidth }]}>
+            <Text style={styles.statVal}>{item.value}</Text>
+            <Text style={styles.statLbl}>{item.label}</Text>
+            {item.hint ? (
+              <Text style={styles.statHint}>{item.hint}</Text>
+            ) : null}
+          </View>
+        )}
+      />
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Sent vs wins (monthly)</Text>
+        {monthly.data && monthly.data.length > 0 ? (
+          <>
+            <MonthlyBars data={monthly.data} chartW={chartW} />
+            <View style={[styles.monthRow, { width: chartW }]}>
+              {monthly.data.map((m) => (
+                <View
+                  key={m.month}
+                  style={{ width: chartW / Math.max(1, monthly.data!.length) }}
+                >
+                  <Text style={styles.monthLbl} numberOfLines={1}>
+                    {formatMonthLabel(m.month)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.chartLegend}>
+              <Text style={{ color: colors.textDim }}>Sent </Text>
+              <Text style={{ color: colors.success }}>· Wins</Text>
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.muted}>No monthly data yet.</Text>
+        )}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>AI INSIGHTS — WHAT'S WORKING</Text>
-        {insights.map((insight, index) => (
-          <View key={index} style={styles.insightItem}>
-            <View style={styles.insightIcon}>
-              <Text style={styles.checkmark}>✓</Text>
-            </View>
-            <Text style={styles.insightText}>{insight.text}</Text>
-          </View>
-        ))}
+        <Text style={styles.cardTitle}>By platform</Text>
+        {platforms.data && platforms.data.length > 0 ? (
+          platforms.data.map((p) => {
+            const pct = parsePct(p.percentage);
+            const fill = p.color || colors.accent;
+            return (
+              <View key={p.platform} style={styles.platformBlock}>
+                <View style={styles.platformTop}>
+                  <Text style={styles.platformName}>{p.platform}</Text>
+                  <Text style={styles.platformMeta}>
+                    {p.count} sent · {p.percentage}
+                  </Text>
+                </View>
+                <View style={styles.platformTrack}>
+                  <View
+                    style={[
+                      styles.platformFillAbs,
+                      {
+                        width: `${pct}%`,
+                        backgroundColor: fill,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.platformWin}>
+                  {p.winRate} win rate
+                </Text>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.muted}>No platform breakdown yet.</Text>
+        )}
       </View>
+
+      <Text style={styles.sectionTitle}>AI insights</Text>
+      <FlatList
+        data={insights.data ?? []}
+        scrollEnabled={false}
+        nestedScrollEnabled
+        keyExtractor={(item, index) => `${index}-${item.text.slice(0, 24)}`}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        style={styles.insightsList}
+        renderItem={({ item }) => <InsightCard insight={item} />}
+        ListEmptyComponent={
+          !insights.isLoading ? (
+            <Text style={styles.muted}>No insights yet.</Text>
+          ) : null
+        }
+      />
+
+      <Text style={styles.lastUpdated}>Last updated {lastLbl}</Text>
     </ScrollView>
   );
 }
@@ -107,94 +355,185 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 24,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.textMuted,
   },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
+  errBanner: {
+    color: colors.danger,
+    fontFamily: fonts.regular,
+    marginBottom: 12,
+    fontSize: 13,
+  },
+  errRow: {
+    marginBottom: 12,
+  },
+  loadingBox: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontFamily: fonts.semiBold,
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  statsList: {
+    paddingBottom: 8,
+  },
+  statsRow: {
+    gap: STAT_GAP,
+    marginBottom: STAT_GAP,
+  },
+  statTile: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+  },
+  statVal: {
+    fontSize: 22,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  statLbl: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.textMuted,
+    marginTop: 6,
+  },
+  statHint: {
+    fontSize: 11,
+    color: colors.textDim,
+    marginTop: 4,
+    fontFamily: fonts.regular,
   },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 12,
-    padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  halfCard: {
-    flex: 1,
+    padding: 16,
+    marginBottom: 16,
   },
   cardTitle: {
     fontSize: 12,
-    fontWeight: "500",
+    fontFamily: fonts.semiBold,
     color: colors.textMuted,
-    marginBottom: 16,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    marginBottom: 14,
   },
-  chartItem: {
-    marginBottom: 12,
-  },
-  chartRow: {
+  monthRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
+    marginTop: 6,
   },
-  chartLabel: {
-    fontSize: 13,
-    color: colors.text,
+  monthLbl: {
+    fontSize: 10,
+    color: colors.textDim,
+    textAlign: "center",
+    fontFamily: fonts.medium,
   },
-  chartValue: {
-    fontSize: 13,
+  chartLegend: {
+    fontSize: 11,
+    fontFamily: fonts.regular,
+    marginTop: 10,
     color: colors.textMuted,
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
+  muted: {
+    fontSize: 13,
+    color: colors.textDim,
+    fontFamily: fonts.regular,
   },
-  progressFill: {
-    height: "100%",
-    borderRadius: 3,
+  emptyNote: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    lineHeight: 19,
+    backgroundColor: colors.surfaceHover,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  insightItem: {
+  emptyNoteBottom: {
+    marginBottom: 16,
+  },
+  platformBlock: {
+    marginBottom: 14,
+  },
+  platformTop: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 12,
-    backgroundColor: colors.bg,
-    borderRadius: 8,
-    padding: 10,
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
-  insightIcon: {
-    width: 16,
-    height: 16,
-    marginRight: 10,
-    marginTop: 1,
-    alignItems: "center",
-    justifyContent: "center",
+  platformName: {
+    fontSize: 13,
+    color: colors.text,
+    fontFamily: fonts.medium,
   },
-  checkmark: {
+  platformMeta: {
     fontSize: 12,
-    color: colors.success,
-    fontWeight: "600",
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+  },
+  platformTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+    position: "relative",
+  },
+  platformFillAbs: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 4,
+  },
+  platformWin: {
+    fontSize: 11,
+    color: colors.textDim,
+    marginTop: 4,
+    fontFamily: fonts.regular,
+  },
+  insightsList: {
+    marginBottom: 8,
+  },
+  insightCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
   insightText: {
     fontSize: 13,
     color: colors.textMuted,
-    lineHeight: 18,
-    flex: 1,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
+  },
+  lastUpdated: {
+    fontSize: 12,
+    color: colors.textDim,
+    fontFamily: fonts.regular,
+    marginTop: 4,
   },
 });

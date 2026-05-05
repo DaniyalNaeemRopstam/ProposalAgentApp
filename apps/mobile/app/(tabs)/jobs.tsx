@@ -1,5 +1,3 @@
-import { JobsScreen } from "../../src/screens/tabs/JobsScreen";
+import JobsTabScreen from "../../src/screens/tabs/JobsTabScreen";
 
-export default function Jobs() {
-  return <JobsScreen />;
-}
+export default JobsTabScreen;

@@ -1,5 +1,7 @@
 import { Proposal } from "../models/Proposal";
 import { Sequence } from "../models/Sequence";
+import { User } from "../models/User";
+import { sendPushNotification } from "./notifications";
 
 const SIX_HOURS = 6 * 60 * 60 * 1_000;
 
@@ -59,6 +61,15 @@ async function processDueMessages(): Promise<void> {
       .sort((a, b) => a.day - b.day);
 
     for (const msg of dueMsgs) {
+      const u = await User.findById(seq.userId).select("pushToken").lean();
+      if (u?.pushToken) {
+        void sendPushNotification(
+          u.pushToken,
+          "Follow-up due",
+          `📨 Follow-up due for ${seq.jobTitle}`,
+          { type: "sequence" }
+        ).catch(() => void 0);
+      }
       // --- Phase 2 hook: await emailService.send(msg) / linkedInService.send(msg) ---
       msg.status = "sent";
       msg.sentAt = new Date();

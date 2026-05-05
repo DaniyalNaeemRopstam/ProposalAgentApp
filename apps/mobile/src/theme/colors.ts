@@ -12,6 +12,8 @@ export const colors = {
   successDim: "#0D3020",
   warn: "#F59E0B",
   warnDim: "#2D2000",
+  /** Readable on warnDim banner */
+  warnText: "#FBBF24",
   danger: "#F56060",
   text: "#F0F2F8",
   textMuted: "#6B7394",
@@ -20,6 +22,11 @@ export const colors = {
   purpleDim: "#2D1F5A",
   teal: "#2DD4BF",
   tealDim: "#0D2E2A",
+  /** iOS shadow / elevation tint */
+  shadow: "#000000",
+  /** Modal and sheet backdrops */
+  overlay: "rgba(0, 0, 0, 0.55)",
+  overlayMuted: "rgba(0, 0, 0, 0.5)",
 } as const;
 
 export type ColorKey = keyof typeof colors;

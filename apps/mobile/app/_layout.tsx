@@ -1,7 +1,11 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import "react-native-gesture-handler";
+
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { colors } from "../src/theme/colors";
 import {
   useFonts,
   SpaceGrotesk_400Regular,
@@ -9,47 +13,63 @@ import {
   SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
 } from "@expo-google-fonts/space-grotesk";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
+import {
+  queryClient,
+  rqAsyncStoragePersister,
+  rqPersistDehydrateOptions,
+} from "../src/lib/reactQuery";
+import { AppBootstrap } from "../src/providers/AppBootstrap";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium, 
+    SpaceGrotesk_500Medium,
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
   });
 
   if (!fontsLoaded) {
-    return null; // App loading screen
+    return null;
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StatusBar style="light" backgroundColor="#0A0C10" />
-      <Stack
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: "#111318",
-          },
-          headerTintColor: "#F0F2F8",
-          headerTitleStyle: {
-            fontWeight: "600",
-          },
-        }}
-      >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="auth/login" options={{ title: "Sign In", headerShown: false }} />
-        <Stack.Screen name="auth/register" options={{ title: "Sign Up", headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: rqAsyncStoragePersister,
+            maxAge: 1000 * 60 * 60 * 24,
+            dehydrateOptions: rqPersistDehydrateOptions,
+          }}
+        >
+          <AppBootstrap>
+            <StatusBar style="light" backgroundColor={colors.bg} />
+            <Stack
+              screenOptions={{
+                headerStyle: {
+                  backgroundColor: colors.surface,
+                },
+                headerTintColor: colors.text,
+                headerTitleStyle: {
+                  fontWeight: "600",
+                },
+              }}
+            >
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="auth/login"
+                options={{ title: "Sign In", headerShown: false }}
+              />
+              <Stack.Screen
+                name="auth/register"
+                options={{ title: "Sign Up", headerShown: false }}
+              />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            </Stack>
+          </AppBootstrap>
+        </PersistQueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

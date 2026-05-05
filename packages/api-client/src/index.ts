@@ -4,7 +4,13 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type RequestOptions = Omit<RequestInit, "body" | "method"> & {
   method?: HttpMethod;
+  /** JSON-serializable body; skips JSON.stringify only when typeof body === "string". */
   body?: unknown;
+};
+
+export type ApiClientOptions = {
+  /** Merged before per-request headers (e.g. `Authorization`). */
+  getExtraHeaders?: () => Promise<Record<string, string>>;
 };
 
 type ApiEnvelope<T> =
@@ -22,19 +28,33 @@ export class ApiError extends Error {
   }
 }
 
-export function createApiClient(baseUrl: string) {
+export function createApiClient(baseUrl: string, options?: ApiClientOptions) {
+  const hooks = options;
   const base = baseUrl.replace(/\/$/, "");
 
-  async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  async function request<T>(path: string, init: RequestOptions = {}): Promise<T> {
     const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-    const { body, method = "GET", headers, ...rest } = options;
+    const { body, method = "GET", headers, ...rest } = init;
+    const extra = hooks?.getExtraHeaders ? await hooks.getExtraHeaders() : {};
+    const hasJsonBody =
+      body !== undefined && body !== null && typeof body !== "string";
+
+    const mergedHeaders: Record<string, string> = {
+      Accept: "application/json",
+      ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
+      ...extra,
+      ...(headers as Record<string, string> | undefined),
+    };
+
     const res = await fetch(url, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        ...(headers as Record<string, string>),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: mergedHeaders,
+      body:
+        body === undefined || body === null
+          ? undefined
+          : typeof body === "string"
+            ? body
+            : JSON.stringify(body),
       ...rest,
     });
 

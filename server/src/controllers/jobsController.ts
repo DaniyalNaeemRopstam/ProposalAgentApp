@@ -12,6 +12,7 @@ import type {
 import { researchClientWithClaude, scoreJobWithClaude } from "../services/jobsAIService";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
+import { sendPushNotification } from "../utils/notifications";
 
 type ProfileForScoring = {
   name: string;
@@ -141,6 +142,8 @@ export async function saveJob(req: Request, res: Response): Promise<void> {
         ? new Date(body.postedAt)
         : new Date();
 
+  const rounded = Math.round(result.score);
+
   const job = await Job.create({
     userId: req.user!._id,
     platform: body.platform,
@@ -163,12 +166,25 @@ export async function saveJob(req: Request, res: Response): Promise<void> {
     competition: body.competition.trim(),
     timeline: body.timeline.trim(),
     url: body.url?.trim(),
-    score: Math.round(result.score),
+    score: rounded,
     reasons: result.reasons,
     shouldApply: result.shouldApply,
     redFlags: result.redFlags,
     savedAt: new Date(),
   });
+
+  if (rounded > 85) {
+    void (async () => {
+      const u = await User.findById(req.user!._id).select("pushToken").lean();
+      if (!u?.pushToken) return;
+      await sendPushNotification(
+        u.pushToken,
+        `⚡ New match: ${body.title.trim()}`,
+        "Tap to open Jobs and draft your proposal.",
+        { type: "job" }
+      ).catch(() => void 0);
+    })();
+  }
 
   res.status(201).json(ok(job.toJSON()));
 }

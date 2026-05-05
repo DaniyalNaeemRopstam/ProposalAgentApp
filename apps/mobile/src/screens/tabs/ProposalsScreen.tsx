@@ -1,207 +1,297 @@
-import React, { useState } from "react";
+import React, { useCallback } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
   StyleSheet,
-  ScrollView,
-  TextInput,
+  Text,
+  View,
 } from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { Proposal } from "@proposalagent/shared";
 import { Button } from "../../components/ui/Button";
+import { useProposalsList } from "../../hooks/useProposalsList";
 import { colors } from "../../theme/colors";
+import { fonts } from "../../theme/fonts";
+
+function formatProposalDate(raw: Proposal["createdAt"]): string {
+  if (raw == null) return "";
+  const dt = typeof raw === "string" ? new Date(raw) : raw;
+  if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+const STATUS_CHIP: Partial<
+  Record<Proposal["status"], { bg: string; fg: string }>
+> = {
+  draft: { bg: colors.accentDim, fg: colors.accentText },
+  sent: { bg: colors.surfaceHover, fg: colors.textMuted },
+  viewed: { bg: colors.purpleDim, fg: colors.purple },
+  replied: { bg: colors.successDim, fg: colors.success },
+  shortlisted: { bg: colors.tealDim, fg: colors.teal },
+  won: { bg: colors.successDim, fg: colors.success },
+  lost: { bg: `${colors.danger}22`, fg: colors.danger },
+};
 
 export function ProposalsScreen() {
-  const [proposal, setProposal] = useState(`Hi StartupCo,
+  const insets = useSafeAreaInsets();
+  const { data, isLoading, isError, error, refetch, isRefetching } =
+    useProposalsList();
 
-I noticed you need a senior React Native developer for your FinTech MVP — I built something very similar for KPK Government's healthcare platform, and I know exactly what it takes to get this right.
+  const items = data?.proposals ?? [];
+  const bootLoading = isLoading && data === undefined;
 
-Here's how I'd approach your project:
+  const header = useCallback(
+    () => (
+      <View style={styles.header}>
+        <Text style={styles.title}>Your proposals</Text>
+        <Text style={styles.subtitle}>Drafts and sent pitches</Text>
+      </View>
+    ),
+    []
+  );
 
-**Week 1–2:** Architecture setup, auth flow, and core screens
-**Week 3–5:** Main feature development + API integration  
-**Week 6–7:** Testing, performance optimization, App Store prep
-**Week 8:** Launch support + handoff documentation
+  const renderItem = useCallback(
+    ({ item }: { item: Proposal }) => {
+      const chip = STATUS_CHIP[item.status] ?? {
+        bg: colors.surfaceHover,
+        fg: colors.textMuted,
+      };
+      const title =
+        typeof item.job?.title === "string" && item.job.title.trim()
+          ? item.job.title.trim()
+          : "Proposal";
+      const snippet = (item.content ?? "").replace(/\s+/g, " ").trim();
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.row,
+            pressed && { opacity: 0.92 },
+          ]}
+          accessibilityRole="button"
+        >
+          <View style={styles.rowTop}>
+            <Text style={styles.rowTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
+              <Text style={[styles.statusTxt, { color: chip.fg }]}>
+                {item.status}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.rowMeta} numberOfLines={1}>
+            {item.mode} · {item.variant} · {formatProposalDate(item.createdAt)}
+          </Text>
+          {snippet.length > 0 ? (
+            <Text style={styles.snippet} numberOfLines={2}>
+              {snippet.length > 180 ? `${snippet.slice(0, 180)}…` : snippet}
+            </Text>
+          ) : null}
+        </Pressable>
+      );
+    },
+    []
+  );
 
-A few things that make me the right fit:
-→ 7+ years React Native — I've shipped apps to 100k+ government users
-→ MERN stack full-stack capability — I handle both ends
-→ US LLC (DanielForge Technologies) — proper contract + USD invoicing
+  if (bootLoading) {
+    return (
+      <View
+        style={[
+          styles.center,
+          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={styles.muted}>Loading proposals…</Text>
+      </View>
+    );
+  }
 
-My fixed price for this scope: **$12,000** with 3 milestones so you only pay as we hit targets.
-
-Can we jump on a 15-minute call this week to confirm scope?
-
-Daniyal Naeem | DanielForge Technologies LLC`);
+  if (isError) {
+    return (
+      <View
+        style={[
+          styles.center,
+          {
+            paddingTop: insets.top + 24,
+            paddingBottom: insets.bottom + 24,
+            paddingHorizontal: 24,
+          },
+        ]}
+      >
+        <Text style={styles.errTitle}>Could not load proposals</Text>
+        <Text style={styles.errSub}>
+          {error instanceof Error ? error.message : "Unknown error"}
+        </Text>
+        <Button title="Retry" onPress={() => refetch()} />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>AI Proposal Writer</Text>
-        <Text style={styles.subtitle}>
-          Generated for: Senior React Native Developer
-        </Text>
-      </View>
-
-      <View style={styles.jobCard}>
-        <View style={styles.jobInfo}>
-          <Text style={styles.jobTitle}>Senior React Native Developer</Text>
-          <Text style={styles.jobMeta}>Upwork · $8,000–$15,000 · 🇺🇸 USA</Text>
-        </View>
-        <View style={styles.scoreContainer}>
-          <Text style={styles.score}>94</Text>
-        </View>
-      </View>
-
-      <View style={styles.proposalContainer}>
-        <View style={styles.proposalHeader}>
-          <Text style={styles.proposalLabel}>AI-generated proposal · Edit before sending</Text>
-        </View>
-        
-        <TextInput
-          style={styles.proposalInput}
-          value={proposal}
-          onChangeText={setProposal}
-          multiline
-          placeholder="Your proposal will appear here..."
-          placeholderTextColor={colors.textDim}
-        />
-
-        <View style={styles.metrics}>
-          <View style={styles.metric}>
-            <Text style={styles.metricLabel}>Word count</Text>
-            <Text style={styles.metricValue}>{proposal.split(" ").length} words</Text>
-          </View>
-          <View style={styles.metric}>
-            <Text style={styles.metricLabel}>Read time</Text>
-            <Text style={styles.metricValue}>45 sec</Text>
-          </View>
-          <View style={styles.metric}>
-            <Text style={styles.metricLabel}>Win probability</Text>
-            <Text style={[styles.metricValue, { color: colors.success }]}>~68%</Text>
-          </View>
-        </View>
-
-        <View style={styles.actions}>
-          <Button
-            title="Regenerate"
-            variant="ghost"
-            size="small"
+    <View style={styles.flex}>
+      <FlatList
+        style={styles.list}
+        data={items}
+        keyExtractor={(item) => String(item._id)}
+        renderItem={renderItem}
+        ListHeaderComponent={header}
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            paddingTop: insets.top + 8,
+            paddingBottom: insets.bottom + 24,
+            flexGrow: 1,
+          },
+        ]}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refetch()}
+            tintColor={colors.accent}
           />
-          <Button
-            title="Copy Proposal"
-            size="small"
-          />
-        </View>
-      </View>
-    </ScrollView>
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No proposals yet</Text>
+            <Text style={styles.emptySub}>
+              Generate one from Jobs, then find it listed here.
+            </Text>
+            <Button
+              title="Browse jobs"
+              onPress={() => router.push("/(tabs)/jobs")}
+            />
+          </View>
+        }
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
     backgroundColor: colors.bg,
   },
-  content: {
-    padding: 16,
+  list: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+  },
+  center: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 22,
+    fontFamily: fonts.bold,
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.textMuted,
   },
-  jobCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  jobInfo: {
-    flex: 1,
-  },
-  jobTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  jobMeta: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  scoreContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.successDim,
-    borderWidth: 2,
-    borderColor: colors.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  score: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.success,
-  },
-  proposalContainer: {
+  row: {
+    minHeight: 44,
     backgroundColor: colors.surface,
     borderRadius: 12,
-    padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  proposalHeader: {
-    marginBottom: 12,
-  },
-  proposalLabel: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  proposalInput: {
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 20,
-    minHeight: 200,
-    textAlignVertical: "top",
-    backgroundColor: colors.bg,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
-  },
-  metrics: {
+  rowTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  metric: {
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 6,
   },
-  metricLabel: {
+  rowTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    minHeight: 28,
+    justifyContent: "center",
+  },
+  statusTxt: {
     fontSize: 11,
+    fontFamily: fonts.semiBold,
+    textTransform: "uppercase",
+  },
+  rowMeta: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
     color: colors.textMuted,
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  metricValue: {
+  snippet: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.textDim,
+    lineHeight: 18,
+  },
+  muted: {
     fontSize: 14,
-    fontWeight: "700",
-    color: colors.accent,
+    fontFamily: fonts.regular,
+    color: colors.textMuted,
+    marginTop: 8,
   },
-  actions: {
-    flexDirection: "row",
+  errTitle: {
+    fontSize: 18,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+    textAlign: "center",
+  },
+  errSub: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  empty: {
+    alignItems: "center",
+    paddingVertical: 48,
+    paddingHorizontal: 20,
     gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+  },
+  emptySub: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: colors.textMuted,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 4,
   },
 });

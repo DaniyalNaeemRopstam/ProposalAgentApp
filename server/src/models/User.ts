@@ -48,6 +48,8 @@ const userSchema = new Schema(
     projectLibrary: { type: [projectReferenceSchema], default: [] },
     stats: { type: userStatsSchema, default: () => ({}) },
     insightsCache: { type: insightsCacheSchema, default: null },
+    /** Expo push token (ExponentPushToken[…]) — mobile only */
+    pushToken: { type: String, trim: true },
   },
   { timestamps: { createdAt: true, updatedAt: true } }
 );
