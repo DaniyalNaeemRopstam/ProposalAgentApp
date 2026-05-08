@@ -155,11 +155,11 @@ export default function JobsPage() {
   return (
     <div className="animate-slideUp">
       <div
-        className="mb-4 rounded-xl border border-border bg-surface px-4 py-3"
+        className="mb-4 rounded-xl border border-border bg-surface px-3 py-3 sm:px-4"
         style={{ borderColor: C.borderBright }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0 text-[13px] text-textMuted">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 text-[12px] text-textMuted sm:text-[13px]">
             <span className="text-text">Last synced:</span>{" "}
             {displayLastSync ? (
               <span className="font-medium text-text">{displayLastSync}</span>
@@ -193,8 +193,8 @@ export default function JobsPage() {
           </Btn>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-          <span className="self-center text-[11px] font-semibold uppercase tracking-wide text-textDim">
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3 sm:gap-2">
+          <span className="self-center text-[10px] font-semibold uppercase tracking-wide text-textDim sm:text-[11px]">
             Source
           </span>
           {(
@@ -209,7 +209,7 @@ export default function JobsPage() {
               type="button"
               onClick={() => setSourceFilter(t.id)}
               className={cn(
-                "rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors",
+                "rounded-lg px-2 py-1 text-[11px] font-medium transition-colors sm:px-2.5 sm:text-[12px]",
                 sourceFilter === t.id
                   ? "bg-accentDim text-accentText ring-1 ring-accent/40"
                   : "text-textMuted hover:bg-surfaceHover hover:text-text"
@@ -220,8 +220,8 @@ export default function JobsPage() {
           ))}
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="self-center text-[11px] font-semibold uppercase tracking-wide text-textDim">
+        <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+          <span className="self-center text-[10px] font-semibold uppercase tracking-wide text-textDim sm:text-[11px]">
             Filter
           </span>
           {(
@@ -236,7 +236,7 @@ export default function JobsPage() {
               type="button"
               onClick={() => setSavedFilter(t.id)}
               className={cn(
-                "rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors",
+                "rounded-lg px-2 py-1 text-[11px] font-medium transition-colors sm:px-2.5 sm:text-[12px]",
                 savedFilter === t.id
                   ? "bg-purpleDim text-purple ring-1 ring-purple/30"
                   : "text-textMuted hover:bg-surfaceHover hover:text-text"
@@ -251,8 +251,8 @@ export default function JobsPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] text-textMuted">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[12px] text-textMuted sm:text-[13px]">
           AI matched{" "}
           <span className="font-semibold text-accent">{filteredJobs.length}</span> listing
           {filteredJobs.length !== 1 ? "s" : ""}
@@ -308,13 +308,13 @@ export default function JobsPage() {
             return (
               <div
                 key={id}
-                className="animate-slideUp rounded-xl border border-border bg-surface p-5 transition-colors hover:border-borderBright"
+                className="animate-slideUp rounded-xl border border-border bg-surface p-3 transition-colors hover:border-borderBright sm:p-5"
                 style={{ animationDelay: `${i * 80}ms` }}
               >
-                <div className="flex gap-3.5">
+                <div className="flex gap-2.5 sm:gap-3.5">
                   <ScoreRing score={job.score ?? 0} />
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <PlatformBadge platform={job.platform} />
                       {job.isAggregated ? (
                         <span
@@ -331,7 +331,7 @@ export default function JobsPage() {
                           Manual
                         </span>
                       )}
-                      <span className="font-display text-[15px] font-semibold text-text">{job.title}</span>
+                      <span className="font-display text-[14px] font-semibold text-text sm:text-[15px]">{job.title}</span>
                       <button
                         type="button"
                         className="ml-auto shrink-0 rounded-lg border border-border p-1.5 text-textMuted hover:border-borderBright hover:text-text"

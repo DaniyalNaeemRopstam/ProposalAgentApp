@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/dashboard/Icon";
 import { StatCard } from "@/components/ui/StatCard";
 import { useSocket } from "@/hooks/useSocket";
 import { useAnalyticsOverview } from "@/hooks/useAnalytics";
+import { useAuth } from "@/context/AuthContext";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
 
@@ -76,11 +77,17 @@ function CountUpRate({ value }: { value: number }) {
 
 export function DashboardAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const { data: overview } = useAnalyticsOverview();
 
   const [liveEvents, setLiveEvents] = useState(0);
   const [jobsNavBadge, setJobsNavBadge] = useState(0);
   const [statPulse, setStatPulse] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -90,6 +97,28 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
       if (n > 0) setJobsNavBadge(n);
     }
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    if (showUserMenu || mobileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showUserMenu, mobileMenuOpen]);
+
+  const handleLogout = () => {
+    logout();
+    setShowUserMenu(false);
+    router.push("/");
+  };
 
   useSocket({
     onSidebarJobsBump: () => {
@@ -127,8 +156,13 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-bg text-text">
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+      )}
 
-      <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface px-3 py-6">
+      {/* Desktop sidebar */}
+      <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface px-3 py-6 lg:flex">
         <div className="mb-8 px-2">
           <div className="font-display text-sm font-bold tracking-tight text-text">Menu</div>
           <div className="mt-1 text-[10px] text-textMuted">ProposalAgent workspace</div>
@@ -169,16 +203,83 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
 
+      {/* Mobile sidebar */}
+      <aside 
+        ref={mobileMenuRef}
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex h-screen w-[280px] flex-col border-r border-border bg-surface px-3 py-6 transition-transform duration-300 ease-in-out lg:hidden",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="mb-8 flex items-center justify-between px-2">
+          <div>
+            <div className="font-display text-sm font-bold tracking-tight text-text">Menu</div>
+            <div className="mt-1 text-[10px] text-textMuted">ProposalAgent workspace</div>
+          </div>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-textMuted hover:bg-surfaceHover hover:text-text transition-colors"
+            aria-label="Close menu"
+          >
+            <Icon name="x" size={18} />
+          </button>
+        </div>
+        <nav className="flex flex-1 flex-col gap-1">
+          {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const showBadge = item.href === "/dashboard/jobs" && jobsNavBadge > 0;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] transition-colors",
+                  active
+                    ? "border border-borderBright bg-accentDim font-medium text-text"
+                    : "border border-transparent font-normal text-textMuted hover:bg-surfaceHover hover:text-text"
+                )}
+              >
+                <span className={active ? "text-accent" : "text-textMuted"}>
+                  <Icon name={item.icon} size={14} />
+                </span>
+                <span className="flex-1">{item.label}</span>
+                {showBadge ? (
+                  <span
+                    className={cn(
+                      "flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-px",
+                      "text-[10px] font-semibold text-white"
+                    )}
+                    style={{ background: C.accent }}
+                  >
+                    {jobsNavBadge > 99 ? "99+" : jobsNavBadge}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
+
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border bg-bg px-6 py-7">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border bg-bg px-4 py-4 sm:px-6 sm:py-7">
           <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surfaceHover text-textMuted hover:border-borderBright hover:text-text transition-colors lg:hidden"
+              aria-label="Open menu"
+            >
+              <Icon name="menu" size={18} />
+            </button>
+            
             <div
               className="flex h-9 w-9 items-center justify-center rounded-[10px] border bg-accentDim"
               style={{ borderColor: C.accent, color: C.accent }}
             >
               <Icon name="zap" size={18} />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <div className="font-display text-lg font-bold tracking-tight" style={{ color: C.text }}>
                 ProposalAgent
               </div>
@@ -187,10 +288,10 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div
               title="Real-time dashboard activity"
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+              className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 sm:flex"
               style={{
                 background: C.successDim,
                 border: `1px solid ${C.success}30`,
@@ -210,19 +311,63 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
                 {liveEvents === 0 ? "Live" : `${liveEvents} updates`}
               </span>
             </div>
-            <button
-              type="button"
-              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-surfaceHover text-textMuted hover:border-borderBright hover:text-text"
-              aria-label="Account"
+            
+            {/* Mobile live indicator (just the dot) */}
+            <div
+              title="Real-time dashboard activity"
+              className="flex h-9 w-9 items-center justify-center sm:hidden"
             >
-              <Icon name="user" size={18} />
-            </button>
+              <span className="relative flex h-2 w-2">
+                <span
+                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40"
+                  style={{ background: C.success }}
+                />
+                <span
+                  className="relative inline-flex h-2 w-2 rounded-full"
+                  style={{ background: C.success }}
+                />
+              </span>
+            </div>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-surfaceHover text-textMuted hover:border-borderBright hover:text-text transition-colors"
+                aria-label="Account"
+              >
+                <Icon name="user" size={18} />
+              </button>
+              {showUserMenu && user && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-lg z-50"
+                  style={{ boxShadow: `0 4px 12px rgba(0, 0, 0, 0.15)` }}
+                >
+                  <div className="px-4 py-3 border-b border-border">
+                    <div className="text-sm font-medium text-text">{user.name}</div>
+                    <div className="text-xs text-textMuted mt-1">{user.email}</div>
+                    {user.companyName && (
+                      <div className="text-xs text-textMuted">{user.companyName}</div>
+                    )}
+                  </div>
+                  <div className="px-2 py-2">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-textMuted hover:bg-surfaceHover hover:text-text transition-colors"
+                    >
+                      <Icon name="logout" size={16} />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
         <div
           className={cn(
-            "shrink-0 border-b border-border bg-bg px-6 pb-6 pt-4 transition-[box-shadow] duration-500",
+            "shrink-0 border-b border-border bg-bg px-4 pb-4 pt-4 transition-[box-shadow] duration-500 sm:px-6 sm:pb-6",
             statPulse && "ring-2 ring-inset"
           )}
           style={
@@ -231,7 +376,7 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
               : undefined
           }
         >
-          <div className="mx-auto grid max-w-[900px] grid-cols-2 gap-2.5 md:grid-cols-4">
+          <div className="mx-auto grid max-w-[900px] grid-cols-2 gap-2 sm:gap-2.5 lg:grid-cols-4">
             <StatCard
               label="Proposals sent"
               value={<CountUpInt value={sent} />}
@@ -259,7 +404,7 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-6 pb-10 pt-6">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 pb-6 pt-4 sm:px-6 sm:pb-10 sm:pt-6">
           <div className="mx-auto max-w-[900px]">{children}</div>
         </main>
       </div>

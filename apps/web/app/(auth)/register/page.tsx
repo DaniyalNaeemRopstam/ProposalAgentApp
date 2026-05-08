@@ -126,7 +126,7 @@ export default function RegisterPage() {
 
       <form
         onSubmit={onSubmit}
-        className="rounded-xl border border-border bg-surface p-6"
+        className="rounded-xl border border-border bg-surface p-4 sm:p-6"
       >
         {formError ? (
           <div

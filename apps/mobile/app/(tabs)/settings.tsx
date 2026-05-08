@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -11,6 +13,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../../src/context/AuthContext";
+import { useIntegrationsStatus, useSyncIntegrations } from "../../src/hooks/useIntegrations";
 import { colors } from "../../src/theme/colors";
 import { fonts } from "../../src/theme/fonts";
 import { Button } from "../../src/components/ui/Button";
@@ -28,6 +32,28 @@ interface PlatformDetail {
   lastSync: string;
   requiresAuth?: boolean;
   apiKeySet?: boolean;
+}
+
+function formatRelativeTime(dateString: string | null | undefined): string {
+  if (!dateString) return "Never";
+  
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSecs < 60) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  } catch {
+    return "Never";
+  }
 }
 
 function PlatformRow({
@@ -52,44 +78,64 @@ interface DetailBottomSheetProps {
   platform: (typeof PLATFORMS)[0] | null;
   onClose: () => void;
   onSync: () => void;
-  isSyncing: boolean;
 }
 
 function DetailBottomSheet({
   platform,
   onClose,
   onSync,
-  isSyncing,
 }: DetailBottomSheetProps) {
   const insets = useSafeAreaInsets();
   const [apiKey, setApiKey] = useState("");
+  const { data: integrationStatus } = useIntegrationsStatus();
+  const syncMutation = useSyncIntegrations();
 
-  const details: Record<string, PlatformDetail> = {
-    upwork: {
-      status: "Connected via RSS feed",
-      jobsCount: 48,
-      lastSync: "2 hours ago",
-    },
-    linkedin: {
-      status: "Setup required",
-      jobsCount: 0,
-      lastSync: "Never",
-      requiresAuth: true,
-      apiKeySet: false,
-    },
-    wellfound: {
-      status: "Auto-enabled",
-      jobsCount: 32,
-      lastSync: "1 hour ago",
-    },
-    hackernews: {
-      status: "Auto-enabled",
-      jobsCount: 18,
-      lastSync: "30 minutes ago",
-    },
+  // Get platform-specific details based on real integration status
+  const getPlatformDetails = (platformId: string): PlatformDetail => {
+    const lastSync = integrationStatus?.aggregation?.lastRun;
+    const lastStats = integrationStatus?.aggregation?.lastStats;
+
+    const baseDetail = {
+      jobsCount: lastStats?.jobsFetched || 0,
+      lastSync: formatRelativeTime(lastSync),
+    };
+
+    switch (platformId) {
+      case "upwork":
+        return {
+          ...baseDetail,
+          status: "RSS feed (discontinued by Upwork)",
+          jobsCount: 0, // Upwork RSS is dead
+        };
+      case "linkedin":
+        return {
+          ...baseDetail,
+          status: "Requires RapidAPI key",
+          requiresAuth: true,
+          apiKeySet: false,
+        };
+      case "wellfound":
+        return {
+          ...baseDetail,
+          status: "Requires RapidAPI key",
+          requiresAuth: true,
+          apiKeySet: false,
+        };
+      case "hackernews":
+        return {
+          ...baseDetail,
+          status: "Public API (no auth required)",
+          jobsCount: 0, // No current hiring thread
+        };
+      default:
+        return {
+          ...baseDetail,
+          status: "Unknown",
+        };
+    }
   };
 
-  const detail = platform ? details[platform.id] : null;
+  const detail = platform ? getPlatformDetails(platform.id) : null;
 
   return (
     <Modal
@@ -155,9 +201,9 @@ function DetailBottomSheet({
             )}
 
             <Button
-              title={isSyncing ? "Syncing…" : "Sync now"}
-              loading={isSyncing}
-              disabled={isSyncing}
+              title={syncMutation.isPending ? "Syncing…" : "Sync now"}
+              loading={syncMutation.isPending}
+              disabled={syncMutation.isPending}
               onPress={onSync}
               style={styles.syncBtn}
             />
@@ -176,14 +222,47 @@ function DetailBottomSheet({
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [selectedPlatform, setSelectedPlatform] = useState<(typeof PLATFORMS)[0] | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  
+  const { data: integrationStatus } = useIntegrationsStatus();
+  const syncMutation = useSyncIntegrations();
 
-  const handleSync = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
-    }, 2000);
+  const handleSync = async () => {
+    try {
+      const result = await syncMutation.mutateAsync();
+      Alert.alert(
+        "Sync Complete",
+        `Found ${result.stats.newJobsAdded} new jobs and ${result.stats.hotJobsFound} hot matches!`
+      );
+    } catch (error) {
+      Alert.alert(
+        "Sync Failed", 
+        error instanceof Error ? error.message : "Failed to sync jobs. Please try again."
+      );
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+            router.replace("/auth/login");
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -191,6 +270,28 @@ export default function SettingsScreen() {
       style={[styles.screen, { paddingTop: insets.top }]}
       contentContainerStyle={styles.content}
     >
+      {/* User Profile Section */}
+      {user && (
+        <View style={styles.profileSection}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileAvatar}>
+              <Ionicons name="person" size={24} color={colors.accent} />
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{user.name}</Text>
+              <Text style={styles.profileEmail}>{user.email}</Text>
+              <Text style={styles.profileCompany}>{user.companyName}</Text>
+            </View>
+          </View>
+          <Button
+            title="Logout"
+            variant="ghost"
+            onPress={handleLogout}
+            style={styles.logoutBtn}
+          />
+        </View>
+      )}
+
       <Text style={styles.sectionTitle}>Job Integrations</Text>
       <Text style={styles.sectionSubtitle}>
         Configure which platforms to fetch jobs from
@@ -207,7 +308,9 @@ export default function SettingsScreen() {
       </View>
 
       <Button
-        title="Sync all platforms"
+        title={syncMutation.isPending ? "Syncing all platforms…" : "Sync all platforms"}
+        loading={syncMutation.isPending}
+        disabled={syncMutation.isPending}
         onPress={handleSync}
         style={styles.syncAllBtn}
       />
@@ -216,7 +319,6 @@ export default function SettingsScreen() {
         platform={selectedPlatform}
         onClose={() => setSelectedPlatform(null)}
         onSync={handleSync}
-        isSyncing={isSyncing}
       />
     </ScrollView>
   );
@@ -231,6 +333,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     paddingBottom: 32,
+  },
+  profileSection: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.accentDim,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 16,
+    fontFamily: fonts.semiBold,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.textMuted,
+    marginBottom: 2,
+  },
+  profileCompany: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.textMuted,
+  },
+  logoutBtn: {
+    alignSelf: "flex-start",
   },
   sectionTitle: {
     fontSize: 18,

@@ -34,6 +34,7 @@ import {
   useJobs,
   type JobsPlatformFilter,
 } from "../../hooks/useJobs";
+import { useIntegrationsStatus, useSyncIntegrations } from "../../hooks/useIntegrations";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
@@ -158,12 +159,30 @@ export default function JobsTabScreen() {
     isRefetching,
     lastSync,
   } = useJobs(filter);
+  const { data: integrationStatus } = useIntegrationsStatus();
+  const syncMutation = useSyncIntegrations();
   const deleteJob = useDeleteJob();
   const analyzePaste = useAnalyzePasteJob();
 
   const net = useNetworkStatus();
   const offline =
     net.isConnected === false || net.isInternetReachable === false;
+
+  const handleSyncJobs = async () => {
+    try {
+      const result = await syncMutation.mutateAsync();
+      // The sync mutation automatically invalidates and refetches jobs
+      console.log(`Sync complete: ${result.stats.newJobsAdded} new jobs, ${result.stats.hotJobsFound} hot matches`);
+    } catch (error) {
+      console.error("Sync failed:", error);
+      // Fallback to just refetching existing jobs
+      refetch();
+    }
+  };
+
+  const displayLastSync = integrationStatus?.aggregation?.lastRun 
+    ? new Date(integrationStatus.aggregation.lastRun)
+    : lastSync;
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedId((cur) => (cur === id ? null : id));
@@ -241,9 +260,9 @@ export default function JobsTabScreen() {
   const listHeader = (
     <View>
       <SyncBanner
-        isRefetching={isRefetching}
-        lastSync={lastSync}
-        onSync={() => refetch()}
+        isRefetching={isRefetching || syncMutation.isPending}
+        lastSync={displayLastSync}
+        onSync={handleSyncJobs}
       />
       <View style={styles.headerBlock}>
         <Text style={styles.blurb}>

@@ -82,7 +82,7 @@ export function LoginForm() {
 
       <form
         onSubmit={onSubmit}
-        className="rounded-xl border border-border bg-surface p-6 shadow-[0_0_0_1px_rgba(79,124,255,0.06)]"
+        className="rounded-xl border border-border bg-surface p-4 shadow-[0_0_0_1px_rgba(79,124,255,0.06)] sm:p-6"
         style={{ boxShadow: `0 0 24px ${C.accent}12` }}
       >
         {formError ? (
