@@ -38,11 +38,16 @@ const jobSchema = new Schema(
     url: { type: String },
     savedAt: { type: Date },
     archived: { type: Boolean, default: false, index: true },
+    sourceUrl: { type: String },
+    externalId: { type: String },
+    fetchedAt: { type: Date },
+    isAggregated: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
 jobSchema.index({ userId: 1, platform: 1 });
 jobSchema.index({ userId: 1, archived: 1, score: -1, postedAt: -1 });
+jobSchema.index({ externalId: 1, platform: 1 }, { unique: true, sparse: true });
 
 export const Job = mongoose.model("Job", jobSchema);

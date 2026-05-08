@@ -15,7 +15,8 @@ export type IconName =
   | "bar"
   | "user"
   | "arrow"
-  | "sparkle";
+  | "sparkle"
+  | "chevronDown";
 
 export interface IconProps {
   name: IconName;
@@ -117,6 +118,11 @@ export function Icon({ name, size = 16, className }: IconProps) {
       <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path d="M12 0L14.59 9.41 24 12 14.59 14.59 12 24 9.41 14.59 0 12 9.41 9.41Z" opacity="0.3" />
         <path d="M12 3L13.5 9.5 20 11 13.5 12.5 12 19 10.5 12.5 4 11 10.5 9.5Z" />
+      </svg>
+    ),
+    chevronDown: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+        <polyline points="6 9 12 15 18 9" stroke={stroke} strokeWidth="2" />
       </svg>
     ),
   };

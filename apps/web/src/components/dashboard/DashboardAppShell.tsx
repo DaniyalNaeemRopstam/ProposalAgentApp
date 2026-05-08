@@ -82,8 +82,25 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
   const [jobsNavBadge, setJobsNavBadge] = useState(0);
   const [statPulse, setStatPulse] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("pa_jobs_nav_badge");
+    if (raw) {
+      const n = Math.min(Math.max(0, parseInt(raw, 10) || 0), 999);
+      if (n > 0) setJobsNavBadge(n);
+    }
+  }, []);
+
   useSocket({
-    onSidebarJobsBump: () => setJobsNavBadge((n) => Math.min(n + 1, 999)),
+    onSidebarJobsBump: () => {
+      setJobsNavBadge((n) => {
+        const next = Math.min(n + 1, 999);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("pa_jobs_nav_badge", String(next));
+        }
+        return next;
+      });
+    },
     onLiveActivityBump: () => setLiveEvents((n) => Math.min(n + 1, 999)),
     onStatsBump: () => setStatPulse(true),
   });
@@ -91,6 +108,9 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (pathname === "/dashboard/jobs" || pathname.startsWith("/dashboard/jobs/")) {
       setJobsNavBadge(0);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("pa_jobs_nav_badge");
+      }
     }
   }, [pathname]);
 

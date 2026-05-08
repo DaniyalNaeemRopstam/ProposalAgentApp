@@ -71,6 +71,11 @@ export async function listJobs(req: Request, res: Response): Promise<void> {
   if (q.platform) {
     filter.platform = q.platform;
   }
+  if (q.source === "aggregated") {
+    filter.isAggregated = true;
+  } else if (q.source === "manual") {
+    filter.$or = [{ isAggregated: false }, { isAggregated: { $exists: false } }];
+  }
 
   const skip = (q.page - 1) * q.limit;
 

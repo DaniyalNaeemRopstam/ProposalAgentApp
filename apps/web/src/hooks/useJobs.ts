@@ -5,6 +5,8 @@ import type { Job } from "@proposalagent/shared";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 
+export type JobsSourceFilter = "all" | "aggregated" | "manual";
+
 function normalizeJobs(payload: unknown): Job[] {
   if (Array.isArray(payload)) return payload as Job[];
   if (
@@ -18,11 +20,31 @@ function normalizeJobs(payload: unknown): Job[] {
   return [];
 }
 
-export function useJobs() {
+export type UseJobsOptions = {
+  /** Passed as `source` query param to GET /api/jobs */
+  source?: JobsSourceFilter;
+  minScore?: number;
+  limit?: number;
+  /** React Query refetch interval in ms (e.g. 15 minutes) */
+  refetchInterval?: number | false;
+};
+
+export function useJobs(options?: UseJobsOptions) {
+  const source = options?.source ?? "all";
+  const minScore = options?.minScore ?? 60;
+  const limit = options?.limit ?? 100;
+  const refetchInterval = options?.refetchInterval ?? 1_000 * 60 * 15;
+
   return useQuery({
-    queryKey: ["jobs"],
+    queryKey: ["jobs", source, minScore, limit],
     queryFn: async (): Promise<Job[]> => {
-      const res = await fetch(apiUrl("/api/jobs"), {
+      const params = new URLSearchParams({
+        source,
+        minScore: String(minScore),
+        limit: String(limit),
+        page: "1",
+      });
+      const res = await fetch(apiUrl(`/api/jobs?${params.toString()}`), {
         credentials: "include",
         headers: { Accept: "application/json", ...authHeaders() },
       });
@@ -37,5 +59,6 @@ export function useJobs() {
       return normalizeJobs(data);
     },
     staleTime: 30 * 1000,
+    refetchInterval,
   });
 }

@@ -16,6 +16,8 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  Easing,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -41,7 +43,72 @@ const FILTERS: { key: JobsPlatformFilter; label: string }[] = [
   { key: "Upwork", label: "Upwork" },
   { key: "LinkedIn", label: "LinkedIn" },
   { key: "Wellfound", label: "Wellfound" },
+  { key: "aggregated", label: "Auto-matched" },
+  { key: "manual", label: "Manual" },
 ];
+
+function formatRelativeTime(date: Date | null | undefined): string {
+  if (!date) return "Never";
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(date).toLocaleDateString();
+}
+
+function SyncBanner({
+  isRefetching,
+  lastSync,
+  onSync,
+}: {
+  isRefetching: boolean;
+  lastSync: Date | null | undefined;
+  onSync: () => void;
+}) {
+  const rotation = useSharedValue(0);
+
+  useEffect(() => {
+    if (isRefetching) {
+      rotation.value = withRepeat(
+        withTiming(360, { duration: 1000, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      rotation.value = withTiming(0, { duration: 300 });
+    }
+  }, [isRefetching, rotation]);
+
+  const animatedIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  return (
+    <View style={styles.syncBanner}>
+      <Text style={styles.syncText}>Last synced: {formatRelativeTime(lastSync)}</Text>
+      <Pressable
+        onPress={onSync}
+        disabled={isRefetching}
+        style={isRefetching ? { opacity: 0.6 } : {}}
+      >
+        <Animated.View style={animatedIconStyle}>
+          <Ionicons
+            name="refresh"
+            size={18}
+            color={colors.accent}
+          />
+        </Animated.View>
+      </Pressable>
+    </View>
+  );
+}
 
 function SkeletonBlock({ style }: { style?: object }) {
   const o = useSharedValue(0.35);
@@ -89,6 +156,7 @@ export default function JobsTabScreen() {
     error,
     refetch,
     isRefetching,
+    lastSync,
   } = useJobs(filter);
   const deleteJob = useDeleteJob();
   const analyzePaste = useAnalyzePasteJob();
@@ -171,35 +239,42 @@ export default function JobsTabScreen() {
   );
 
   const listHeader = (
-    <View style={styles.headerBlock}>
-      <Text style={styles.blurb}>
-        AI found{" "}
-        <Text style={styles.blurbAccent}>{jobs.length} high-fit jobs</Text> in the
-        last 2 hours across Upwork, LinkedIn & Wellfound
-      </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillsRow}
-      >
-        {FILTERS.map((f) => {
-          const active = filter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => {
-                setFilter(f.key);
-                setExpandedId(null);
-              }}
-              style={[styles.pill, active && styles.pillActive]}
-            >
-              <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+    <View>
+      <SyncBanner
+        isRefetching={isRefetching}
+        lastSync={lastSync}
+        onSync={() => refetch()}
+      />
+      <View style={styles.headerBlock}>
+        <Text style={styles.blurb}>
+          AI found{" "}
+          <Text style={styles.blurbAccent}>{jobs.length} high-fit jobs</Text> in the
+          last 2 hours across Upwork, LinkedIn & Wellfound
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsRow}
+        >
+          {FILTERS.map((f) => {
+            const active = filter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  setFilter(f.key);
+                  setExpandedId(null);
+                }}
+                style={[styles.pill, active && styles.pillActive]}
+              >
+                <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
     </View>
   );
 
@@ -340,6 +415,21 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  syncBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  syncText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
   },
   listContent: {
     paddingHorizontal: 16,

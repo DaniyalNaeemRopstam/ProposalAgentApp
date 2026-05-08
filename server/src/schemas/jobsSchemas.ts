@@ -17,7 +17,9 @@ const objectIdParam = z
 /** GET /api/jobs query */
 export const listJobsQuerySchema = z.object({
   platform: z.enum(PLATFORM_VALUES).optional(),
-  minScore: z.coerce.number().min(0).max(100).optional().default(70),
+  /** Filter by aggregation source */
+  source: z.enum(["all", "aggregated", "manual"]).optional().default("all"),
+  minScore: z.coerce.number().min(0).max(100).optional().default(60),
   limit: z.coerce.number().min(1).max(100).optional().default(20),
   page: z.coerce.number().min(1).optional().default(1),
 });

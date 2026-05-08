@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Btn } from "@/components/ui/Btn";
 import { Icon } from "@/components/dashboard/Icon";
 import { cn } from "@/lib/cn";
@@ -558,6 +559,16 @@ export function SettingsTab() {
         <p style={{ fontSize: 14, color: C.textMuted }}>
           Manage your account, voice profile, projects, and billing
         </p>
+        <Link
+          href="/dashboard/settings/integrations"
+          className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3 transition-colors hover:border-borderBright hover:bg-surfaceHover"
+        >
+          <span>
+            <span className="block text-[13px] font-semibold text-text">Job feeds & integrations</span>
+            <span className="text-[12px] text-textMuted">Sync Upwork, LinkedIn, Wellfound & Hacker News</span>
+          </span>
+          <span className="text-accentText text-sm font-medium">Open →</span>
+        </Link>
       </div>
 
       <div className="flex gap-4 border-b border-border pb-0">

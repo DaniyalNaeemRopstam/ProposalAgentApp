@@ -13,18 +13,33 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "rootDir": ".",
-    "roots": ["<rootDir>/__tests__"],
-    "testMatch": ["**/*.test.ts"],
-    "collectCoverageFrom": ["src/**/*.ts", "!src/index.ts"],
+    "roots": [
+      "<rootDir>/__tests__"
+    ],
+    "testMatch": [
+      "**/*.test.ts"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/index.ts"
+    ],
     "coverageDirectory": "coverage",
-    "moduleFileExtensions": ["ts", "tsx", "js", "json"],
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "json"
+    ],
     "testTimeout": 90000,
-    "setupFilesAfterEnv": ["<rootDir>/__tests__/jest.setup.ts"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/__tests__/jest.setup.ts"
+    ],
     "maxWorkers": 1
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@proposalagent/shared": "*",
+    "axios": "^1.16.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -34,6 +49,9 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
     "morgan": "^1.10.0",
+    "node-cron": "^4.2.1",
+    "rss-parser": "^3.13.0",
+    "slugify": "^1.6.9",
     "socket.io": "^4.8.3",
     "stripe": "^16.2.0",
     "zod": "^3.23.8"
@@ -46,6 +64,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.12.12",
+    "@types/node-cron": "^3.0.11",
     "@types/supertest": "^7.2.0",
     "jest": "^30.3.0",
     "mongodb-memory-server": "^11.1.0",

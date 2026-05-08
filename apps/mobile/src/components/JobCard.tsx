@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, Linking } from "react-native";
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -27,6 +27,35 @@ function PlatformBadge({ platform }: { platform: string }) {
     <View style={[styles.badge, { backgroundColor: bg }]}>
       <Text style={[styles.badgeText, { color: fg }]}>
         {platform.toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+function SourceBadge({ isAggregated }: { isAggregated?: boolean }) {
+  const isTeal = isAggregated === true;
+  const isPurple = isAggregated === false;
+
+  if (!isTeal && !isPurple) return null;
+
+  return (
+    <View
+      style={[
+        styles.badge,
+        {
+          backgroundColor: isTeal ? colors.accentDim : colors.purpleDim,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.badgeText,
+          {
+            color: isTeal ? colors.accentText : colors.purple,
+          },
+        ]}
+      >
+        {isTeal ? "AUTO" : "MANUAL"}
       </Text>
     </View>
   );
@@ -81,6 +110,7 @@ export function JobCard({
           <View style={styles.headMain}>
             <View style={styles.titleRow}>
               <PlatformBadge platform={job.platform} />
+              <SourceBadge isAggregated={job.isAggregated} />
               <Text style={styles.title} numberOfLines={2}>
                 {job.title}
               </Text>
@@ -137,6 +167,15 @@ export function JobCard({
               </View>
             ))}
           </View>
+        ) : null}
+
+        {job.sourceUrl ? (
+          <Button
+            title={`Open in ${job.platform} ↗`}
+            variant="ghost"
+            onPress={() => Linking.openURL(job.sourceUrl!)}
+            style={styles.viewOriginalBtn}
+          />
         ) : null}
 
         {job.reasons?.length ? (
@@ -321,6 +360,9 @@ const styles = StyleSheet.create({
   genBtn: {
     marginBottom: 4,
     marginTop: 6,
+  },
+  viewOriginalBtn: {
+    marginBottom: 8,
   },
   offlineHint: {
     marginTop: 2,

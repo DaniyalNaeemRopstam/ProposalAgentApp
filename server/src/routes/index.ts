@@ -3,6 +3,7 @@ import { analyticsRouter } from "./analytics";
 import { authRouter } from "./auth";
 import { billingRouter } from "./billing";
 import { healthRouter } from "./health";
+import { integrationsRouter } from "./integrations";
 import { jobsRouter } from "./jobs";
 import { pipelineRouter } from "./pipeline";
 import { proposalsRouter } from "./proposals";
@@ -19,4 +20,5 @@ export function registerRoutes(app: Express): void {
   app.use("/api/pipeline", pipelineRouter);
   app.use("/api/analytics", analyticsRouter);
   app.use("/api/billing", billingRouter);
+  app.use("/api/integrations", integrationsRouter);
 }

@@ -51,6 +51,11 @@ export interface Job {
   timeline: string;
   url?: string;
   savedAt?: Date;
+  /** Original listing URL (aggregated / sourced jobs) */
+  sourceUrl?: string;
+  externalId?: string;
+  fetchedAt?: Date;
+  isAggregated?: boolean;
 }
 
 export interface ClientInfo {

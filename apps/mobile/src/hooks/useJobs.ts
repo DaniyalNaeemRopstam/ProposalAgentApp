@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Job } from "@proposalagent/shared";
 import { serverApi } from "../lib/api";
@@ -15,21 +16,51 @@ function normalizeJobs(payload: unknown): Job[] {
   return [];
 }
 
-export type JobsPlatformFilter = "all" | "Upwork" | "LinkedIn" | "Wellfound";
+export type JobsPlatformFilter = "all" | "Upwork" | "LinkedIn" | "Wellfound" | "aggregated" | "manual";
 
-export function useJobs(filter: JobsPlatformFilter = "all") {
-  return useQuery({
+export interface UseJobsResult {
+  data: Job[];
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+  refetch: () => void;
+  isRefetching: boolean;
+  lastSync: Date | null;
+}
+
+export function useJobs(filter: JobsPlatformFilter = "all"): UseJobsResult {
+  const [lastSync, setLastSync] = React.useState<Date | null>(null);
+
+  const query = useQuery({
     queryKey: ["jobs", filter],
     queryFn: async (): Promise<Job[]> => {
-      const qs =
-        filter !== "all"
-          ? `?${new URLSearchParams({ platform: filter }).toString()}`
-          : "";
+      const params = new URLSearchParams();
+      
+      if (filter === "aggregated") {
+        params.append("source", "aggregated");
+      } else if (filter === "manual") {
+        params.append("source", "manual");
+      } else if (filter !== "all") {
+        params.append("platform", filter);
+      }
+
+      const qs = params.toString() ? `?${params.toString()}` : "";
       const raw = await serverApi.request<unknown>(`/api/jobs${qs}`);
+      setLastSync(new Date());
       return normalizeJobs(raw);
     },
-    staleTime: 30 * 1000,
+    staleTime: 30 * 60 * 1000, // 30 minutes for aggregated jobs
   });
+
+  return {
+    data: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error as Error | null,
+    refetch: () => void query.refetch(),
+    isRefetching: query.isRefetching,
+    lastSync,
+  };
 }
 
 /** Paste raw text: server scores via Claude and persists the job (POST /api/jobs/save). */

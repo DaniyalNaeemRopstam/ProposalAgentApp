@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useJobs } from "@/hooks/useJobs";
+import { useJobs, type JobsSourceFilter } from "@/hooks/useJobs";
+import { useIntegrationsStatus, useSyncIntegrations } from "@/hooks/useIntegrations";
 import { JobSkeleton } from "@/components/skeletons/JobSkeleton";
 import { Btn } from "@/components/ui/Btn";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
@@ -14,13 +15,55 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 import toast from "react-hot-toast";
 import type { Job } from "@proposalagent/shared";
+import { C } from "@/styles/theme";
+import { cn } from "@/lib/cn";
+
+type SavedFilter = "all" | "new" | "saved";
+
+function formatRelative(iso: string | Date | null | undefined): string {
+  if (!iso) return "—";
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  if (Number.isNaN(d.getTime())) return "—";
+  const sec = Math.round((Date.now() - d.getTime()) / 1000);
+  if (sec < 45) return "just now";
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
+}
+
+function jobKey(job: Job, i: number): string {
+  const j = job as Job & { _id?: string; id?: string };
+  return j._id || j.id || `job-${i}`;
+}
 
 export default function JobsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: jobs = [], isLoading, error } = useJobs();
-  const [customJob, setCustomJob] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<JobsSourceFilter>("all");
+  const [savedFilter, setSavedFilter] = useState<SavedFilter>("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [lastSyncLabel, setLastSyncLabel] = useState<string | null>(null);
+  const [lastNewCount, setLastNewCount] = useState<number | null>(null);
+
+  const { data: jobs = [], isLoading, error, isFetching } = useJobs({
+    source: sourceFilter,
+    minScore: 60,
+    limit: 100,
+  });
+
+  const { data: intStatus } = useIntegrationsStatus();
+  const syncMutation = useSyncIntegrations();
+
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const savedAt = (job as Job & { savedAt?: string }).savedAt;
+      const hasSaved = Boolean(savedAt);
+      const isAgg = job.isAggregated === true;
+      if (savedFilter === "saved") return hasSaved;
+      if (savedFilter === "new") return isAgg && !hasSaved;
+      return true;
+    });
+  }, [jobs, savedFilter]);
 
   const saveJobMutation = useMutation({
     mutationFn: async (body: {
@@ -56,17 +99,16 @@ export default function JobsPage() {
     },
   });
 
+  const [customJob, setCustomJob] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
   const handleGenerateProposal = (job: Job) => {
-            const jobId = (job as any)._id || (job as any).id || String(Math.random());
-    router.push(
-      `/dashboard/proposals?jobId=${encodeURIComponent(jobId)}`
-    );
+    const jobId = (job as Job & { _id?: string; id?: string })._id || (job as Job & { id?: string }).id || String(Math.random());
+    router.push(`/dashboard/proposals?jobId=${encodeURIComponent(String(jobId))}`);
   };
 
   const handlePasteJob = async () => {
     if (!customJob.trim()) return;
-
-    // Simple parsing — in real app this would use the AI research endpoint
     const fakeJobData = {
       jobTitle: "Custom Pasted Job",
       jobDescription: customJob,
@@ -76,9 +118,28 @@ export default function JobsPage() {
       clientCountry: "🌐 Global",
       tags: ["custom", "pasted"],
     };
-
     await saveJobMutation.mutateAsync(fakeJobData);
   };
+
+  const aggregationLastRun = intStatus?.aggregation?.lastRun
+    ? formatRelative(intStatus.aggregation.lastRun)
+    : null;
+  const lastRunStatsNew = intStatus?.aggregation?.lastStats?.newJobsAdded;
+
+  const handleSyncNow = async () => {
+    try {
+      const result = await syncMutation.mutateAsync();
+      const stats = result.stats;
+      setLastSyncLabel(formatRelative(stats.lastRun));
+      setLastNewCount(stats.newJobsAdded);
+      toast.success(`Synced — ${stats.newJobsAdded} new, ${stats.hotJobsFound} hot matches`);
+    } catch {
+      /* notifyHttpError handled */
+    }
+  };
+
+  const displayLastSync = lastSyncLabel ?? aggregationLastRun;
+  const displayNewCount = lastNewCount ?? lastRunStatsNew ?? 0;
 
   if (error) {
     return (
@@ -93,13 +154,109 @@ export default function JobsPage() {
 
   return (
     <div className="animate-slideUp">
+      <div
+        className="mb-4 rounded-xl border border-border bg-surface px-4 py-3"
+        style={{ borderColor: C.borderBright }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 text-[13px] text-textMuted">
+            <span className="text-text">Last synced:</span>{" "}
+            {displayLastSync ? (
+              <span className="font-medium text-text">{displayLastSync}</span>
+            ) : (
+              <span className="text-textDim">not yet</span>
+            )}
+            <span className="text-textDim"> · </span>
+            <span className="font-medium" style={{ color: C.teal }}>
+              {displayNewCount} new jobs
+            </span>{" "}
+            <span className="text-textDim">found (last worker run)</span>
+          </div>
+          <Btn
+            onClick={() => void handleSyncNow()}
+            disabled={syncMutation.isPending}
+            className="shrink-0"
+          >
+            {syncMutation.isPending ? (
+              <>
+                <span
+                  className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden
+                />
+                Syncing…
+              </>
+            ) : (
+              <>
+                <Icon name="zap" size={13} /> Sync now
+              </>
+            )}
+          </Btn>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+          <span className="self-center text-[11px] font-semibold uppercase tracking-wide text-textDim">
+            Source
+          </span>
+          {(
+            [
+              { id: "all" as const, label: "All jobs" },
+              { id: "aggregated" as const, label: "Auto-matched" },
+              { id: "manual" as const, label: "Manually added" },
+            ] satisfies { id: JobsSourceFilter; label: string }[]
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSourceFilter(t.id)}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors",
+                sourceFilter === t.id
+                  ? "bg-accentDim text-accentText ring-1 ring-accent/40"
+                  : "text-textMuted hover:bg-surfaceHover hover:text-text"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="self-center text-[11px] font-semibold uppercase tracking-wide text-textDim">
+            Filter
+          </span>
+          {(
+            [
+              { id: "all" as const, label: "All" },
+              { id: "new" as const, label: "New" },
+              { id: "saved" as const, label: "Saved" },
+            ] satisfies { id: SavedFilter; label: string }[]
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSavedFilter(t.id)}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors",
+                savedFilter === t.id
+                  ? "bg-purpleDim text-purple ring-1 ring-purple/30"
+                  : "text-textMuted hover:bg-surfaceHover hover:text-text"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+          {isFetching && !isLoading ? (
+            <span className="self-center text-[11px] text-textDim">Refreshing…</span>
+          ) : null}
+        </div>
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-textMuted">
-          AI found{" "}
-          <span className="font-semibold text-accent">
-            {jobs.length} high-fit jobs
-          </span>{" "}
-          in the last 2 hours across Upwork, LinkedIn & Wellfound
+          AI matched{" "}
+          <span className="font-semibold text-accent">{filteredJobs.length}</span> listing
+          {filteredJobs.length !== 1 ? "s" : ""}
+          {sourceFilter === "aggregated" ? " · Auto-fetched roles" : null}
         </p>
         <Btn variant="ghost" onClick={() => setShowCustom((v) => !v)}>
           <Icon name="copy" size={13} /> Paste job manually
@@ -117,10 +274,7 @@ export default function JobsPage() {
             className="w-full resize-y rounded-[10px] border border-border bg-surfaceHover px-3.5 py-3.5 text-sm leading-relaxed text-text outline-none placeholder:text-textDim focus:border-accent"
           />
           <div className="mt-2.5 flex flex-wrap gap-2">
-            <Btn
-              onClick={handlePasteJob}
-              disabled={saveJobMutation.isPending || !customJob.trim()}
-            >
+            <Btn onClick={() => void handlePasteJob()} disabled={saveJobMutation.isPending || !customJob.trim()}>
               {saveJobMutation.isPending ? "Saving..." : "Save & Analyze Job"}
             </Btn>
             <Btn variant="ghost" onClick={() => setShowCustom(false)}>
@@ -132,68 +286,114 @@ export default function JobsPage() {
 
       {isLoading ? (
         <JobSkeleton />
-      ) : jobs.length === 0 ? (
+      ) : filteredJobs.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-12 text-center">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-surfaceHover">
             <Icon name="target" size={32} />
           </div>
           <div className="font-display mb-2 text-xl text-text">No jobs found</div>
           <p className="mx-auto max-w-xs text-textMuted">
-            We couldn&apos;t find any matching jobs right now. Try pasting a job description above or check back later.
+            Adjust filters or run a sync from Settings → Integrations. You can also paste a job manually.
           </p>
-          <Btn className="mt-6" onClick={() => setShowCustom(true)}>
-            Paste a job manually
+          <Btn className="mt-6" onClick={() => void handleSyncNow()} disabled={syncMutation.isPending}>
+            Sync jobs now
           </Btn>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {jobs.map((job, i) => {
-            const jobId = (job as any)._id || (job as any).id || `job-${i}`;
+          {filteredJobs.map((job, i) => {
+            const id = jobKey(job, i);
+            const expanded = expandedId === id;
+            const sourceUrl = job.sourceUrl || job.url;
             return (
               <div
-                key={jobId}
-                className="animate-slideUp cursor-pointer rounded-xl border border-border bg-surface p-5 transition-colors hover:border-borderBright"
+                key={id}
+                className="animate-slideUp rounded-xl border border-border bg-surface p-5 transition-colors hover:border-borderBright"
                 style={{ animationDelay: `${i * 80}ms` }}
-                onClick={() => handleGenerateProposal(job)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleGenerateProposal(job);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
               >
                 <div className="flex gap-3.5">
-                  <ScoreRing score={job.score || 85} />
+                  <ScoreRing score={job.score ?? 0} />
                   <div className="min-w-0 flex-1">
                     <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <PlatformBadge platform={job.platform} />
-                      <span className="font-display text-[15px] font-semibold text-text">
-                        {job.title}
-                      </span>
-                    </div>
-                    <div className="mb-2 flex flex-wrap gap-4 text-xs text-textMuted">
-                      <span className="text-[13px] font-medium text-success">
-                        {job.budget}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Icon name="clock" size={12} />
-                        {job.posted || "just now"}
-                      </span>
-                      <span>
-                        {job.client?.country} · {job.client?.spent || job.client?.name}
-                      </span>
-                      {job.client?.rating != null && (
-                        <span className="inline-flex items-center gap-1 text-warn">
-                          <Icon name="star" size={11} />
-                          {job.client.rating}
+                      {job.isAggregated ? (
+                        <span
+                          className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                          style={{ background: C.tealDim, color: C.teal }}
+                        >
+                          Auto-matched
+                        </span>
+                      ) : (
+                        <span
+                          className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                          style={{ background: C.purpleDim, color: C.purple }}
+                        >
+                          Manual
                         </span>
                       )}
+                      <span className="font-display text-[15px] font-semibold text-text">{job.title}</span>
+                      <button
+                        type="button"
+                        className="ml-auto shrink-0 rounded-lg border border-border p-1.5 text-textMuted hover:border-borderBright hover:text-text"
+                        aria-expanded={expanded}
+                        aria-label={expanded ? "Collapse" : "Expand"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedId((cur) => (cur === id ? null : id));
+                        }}
+                      >
+                        <Icon name="chevronDown" size={14} className={cn("transition-transform", expanded && "rotate-180") } />
+                      </button>
                     </div>
-                    <p className="mb-2.5 max-w-full truncate text-[13px] leading-relaxed text-textMuted">
-                      {job.snippet}
-                    </p>
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => handleGenerateProposal(job)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleGenerateProposal(job);
+                        }
+                      }}
+                    >
+                      <div className="mb-2 flex flex-wrap gap-4 text-xs text-textMuted">
+                        <span className="text-[13px] font-medium text-success">{job.budget}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Icon name="clock" size={12} />
+                          {job.posted || "just now"}
+                        </span>
+                        <span>
+                          {job.client?.country} · {job.client?.spent || job.client?.name}
+                        </span>
+                        {job.client?.rating != null && (
+                          <span className="inline-flex items-center gap-1 text-warn">
+                            <Icon name="star" size={11} />
+                            {job.client.rating}
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={cn(
+                          "mb-2.5 max-w-full text-[13px] leading-relaxed text-textMuted",
+                          expanded ? "whitespace-pre-wrap" : "truncate"
+                        )}
+                      >
+                        {job.snippet}
+                      </p>
+                    </button>
+                    {expanded && sourceUrl ? (
+                      <div className="mb-3" onClick={(e) => e.stopPropagation()}>
+                        <a
+                          href={sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium text-accentText underline-offset-2 hover:underline"
+                          style={{ background: C.accentDim }}
+                        >
+                          View on {job.platform} ↗
+                        </a>
+                      </div>
+                    ) : null}
                     <div className="mb-3 flex flex-wrap gap-1.5">
                       {job.tags?.map((tg) => (
                         <Tag key={tg}>{tg}</Tag>
@@ -219,7 +419,7 @@ export default function JobsPage() {
                         </ul>
                       </div>
                     )}
-                    <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap gap-2">
                       <Btn onClick={() => handleGenerateProposal(job)}>
                         <Icon name="sparkle" size={13} /> Generate AI proposal
                       </Btn>
