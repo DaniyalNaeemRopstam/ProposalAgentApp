@@ -91,7 +91,7 @@ export default function ProposalWriterScreen() {
   const { data: job, isLoading, isError, error, refetch } = useJob(
     jobId || undefined
   );
-  const { data: jobList = [] } = useJobs("all");
+  const { data: jobList = [] } = useJobs({ source: "all" });
 
   const [mode, setMode] = useState<ProposalMode>("upwork");
   const [variant, setVariant] = useState<ProposalVariant>("quality");

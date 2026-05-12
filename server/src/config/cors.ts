@@ -1,6 +1,8 @@
 import type { CorsOptions } from "cors";
 
-const LOCAL_DEV = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+/** Local dev browser origins (IPv4, IPv6 loopback, localhost). */
+const LOCAL_DEV =
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|\[::ffff:127\.0\.0\.1\])(:\d+)?$/i;
 
 function parseAllowlist(): string[] {
   const raw = process.env.CORS_ORIGINS ?? process.env.CORS_ORIGIN ?? "";

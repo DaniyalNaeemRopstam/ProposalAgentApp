@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { ApiError } from "../utils/ApiError";
+import { rethrowAnthropicAsApiError } from "../utils/mapAnthropicError";
 import { extractJsonPayload } from "./jobsAIService";
 
 const PROPOSAL_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
@@ -223,12 +224,16 @@ export async function generateProposal(
 ): Promise<GenerateProposalResult> {
   const anthropic = getAnthropic();
 
-  // ── Call 1: Generate proposal (claude-sonnet) ──────────────────────────────
-  const proposalMsg = await anthropic.messages.create({
-    model: PROPOSAL_MODEL,
-    max_tokens: 1000,
-    messages: [{ role: "user", content: buildProposalPrompt(input) }],
-  });
+  let proposalMsg;
+  try {
+    proposalMsg = await anthropic.messages.create({
+      model: PROPOSAL_MODEL,
+      max_tokens: 1000,
+      messages: [{ role: "user", content: buildProposalPrompt(input) }],
+    });
+  } catch (err) {
+    rethrowAnthropicAsApiError(err);
+  }
 
   const proposalBlock = proposalMsg.content[0];
   if (proposalBlock.type !== "text") {
@@ -255,17 +260,22 @@ export async function generateProposalStreaming(
 ): Promise<GenerateProposalResult> {
   const anthropic = getAnthropic();
 
-  const stream = anthropic.messages.stream({
-    model: PROPOSAL_MODEL,
-    max_tokens: 1000,
-    messages: [{ role: "user", content: buildProposalPrompt(input) }],
-  });
+  let content: string;
+  try {
+    const stream = anthropic.messages.stream({
+      model: PROPOSAL_MODEL,
+      max_tokens: 1000,
+      messages: [{ role: "user", content: buildProposalPrompt(input) }],
+    });
 
-  stream.on("text", (delta) => {
-    onTextDelta(delta);
-  });
+    stream.on("text", (delta) => {
+      onTextDelta(delta);
+    });
 
-  const content = (await stream.finalText()).trim();
+    content = (await stream.finalText()).trim();
+  } catch (err) {
+    rethrowAnthropicAsApiError(err);
+  }
   const wordCount = content.split(/\s+/).filter(Boolean).length;
 
   const { replyProbability, proposalScore } = await scoreProposalQuality(

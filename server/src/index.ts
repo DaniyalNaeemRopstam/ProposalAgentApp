@@ -1,10 +1,11 @@
-import "dotenv/config";
+import "./loadEnv";
 import http from "http";
 import mongoose from "mongoose";
 import { createApp } from "./createApp";
 import { initSocketServer } from "./realtime/socketServer";
 import { startCronJobs } from "./utils/cronJobs";
 import { startJobAggregator } from "./workers/jobAggregator";
+import { ensureJobIndexes } from "./utils/ensureJobIndexes";
 
 const app = createApp();
 const port = Number(process.env.PORT) || 5000;
@@ -33,6 +34,7 @@ async function bootstrap(): Promise<void> {
     serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_MS) || 10_000,
   });
   console.info("MongoDB connected");
+  await ensureJobIndexes();
 
   const server = http.createServer(app);
 
@@ -49,5 +51,8 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch((e) => {
   console.error("Failed to start server:", e);
+  console.error(
+    "\nTips: ensure MongoDB is running and reachable (MONGODB_URI), and that JWT_SECRET / other required env vars are set.\n"
+  );
   process.exit(1);
 });

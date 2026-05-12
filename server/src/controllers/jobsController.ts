@@ -9,6 +9,7 @@ import type {
   saveJobBodySchema,
   scoreJobBodySchema,
 } from "../schemas/jobsSchemas";
+import { backfillAggregatedJobsForUser } from "../services/jobBackfillService";
 import { researchClientWithClaude, scoreJobWithClaude } from "../services/jobsAIService";
 import { ApiError } from "../utils/ApiError";
 import { emitNewJobMatch } from "../realtime/emitters";
@@ -63,6 +64,19 @@ async function loadUserOrThrow(req: Request): Promise<ProfileForScoring> {
 
 export async function listJobs(req: Request, res: Response): Promise<void> {
   const q = req.validated as z.infer<typeof listJobsQuerySchema>;
+
+  const bareCount = await Job.countDocuments({
+    userId: req.user!._id,
+    archived: false,
+  });
+  if (bareCount === 0) {
+    try {
+      await backfillAggregatedJobsForUser(req.user!._id);
+    } catch (err) {
+      console.error("[jobs] aggregated job backfill failed (list):", err);
+    }
+  }
+
   const filter: Record<string, unknown> = {
     userId: req.user!._id,
     archived: false,

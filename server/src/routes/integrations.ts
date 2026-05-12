@@ -2,12 +2,18 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { asyncHandler } from "../utils/asyncHandler";
+import { backfillAggregatedJobsForUser } from "../services/jobBackfillService";
+import { fetchUpworkJobs } from "../services/upworkService";
+import { fetchWellfoundJobs } from "../services/wellfoundService";
+import { fetchHackerNewsJobs } from "../services/hackerNewsService";
+import { fetchLinkedInJobs } from "../services/linkedinService";
 import {
   runAggregation,
   getLastAggregationStats,
 } from "../workers/jobAggregator";
 import { Job } from "../models/Job";
-import { AppSettings } from "../models/AppSettings";
+import { AppSettings, getStoredRapidApiKey } from "../models/AppSettings";
+import { ok } from "../utils/ApiResponse";
 
 export const integrationsRouter = Router();
 
@@ -46,8 +52,10 @@ integrationsRouter.put(
  */
 integrationsRouter.post(
   "/sync",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const stats = await runAggregation();
+    const userId = req.user!._id;
+    const backfilled = await backfillAggregatedJobsForUser(userId);
 
     return res.status(200).json({
       success: true,
@@ -55,11 +63,83 @@ integrationsRouter.post(
       stats: {
         lastRun: stats.lastRun,
         jobsFetched: stats.jobsFetched,
-        newJobsAdded: stats.newJobsAdded,
+        newJobsAdded: stats.newJobsAdded + backfilled,
         hotJobsFound: stats.hotJobsFound,
         errors: stats.errors,
+        backfilled,
       },
     });
+  })
+);
+
+type SourceDebug =
+  | { status: "ok"; count: number }
+  | { status: "error"; message: string }
+  | { status: "skipped"; message: string };
+
+function errMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * GET /api/integrations/debug
+ * Ping each job source once (no DB writes). For local / staging diagnostics only.
+ */
+integrationsRouter.get(
+  "/debug",
+  asyncHandler(async (_req, res) => {
+    const results: Record<string, SourceDebug> = {};
+
+    try {
+      const jobs = await fetchUpworkJobs();
+      results.upwork = { status: "ok", count: jobs.length };
+    } catch (e) {
+      results.upwork = { status: "error", message: errMessage(e) };
+    }
+
+    try {
+      const jobs = await fetchWellfoundJobs();
+      results.wellfound = { status: "ok", count: jobs.length };
+    } catch (e) {
+      results.wellfound = { status: "error", message: errMessage(e) };
+    }
+
+    try {
+      const jobs = await fetchHackerNewsJobs();
+      results.hn = { status: "ok", count: jobs.length };
+    } catch (e) {
+      results.hn = { status: "error", message: errMessage(e) };
+    }
+
+    const envKey = process.env.RAPIDAPI_KEY?.trim();
+    const storedKey = await getStoredRapidApiKey();
+    if (!envKey && !storedKey) {
+      results.linkedin = {
+        status: "skipped",
+        message: "No RAPIDAPI_KEY in env and no key stored in app settings",
+      };
+    } else {
+      try {
+        const jobs = await fetchLinkedInJobs();
+        results.linkedin = { status: "ok", count: jobs.length };
+      } catch (e) {
+        results.linkedin = { status: "error", message: errMessage(e) };
+      }
+    }
+
+    return res.status(200).json(results);
+  })
+);
+
+/**
+ * POST /api/integrations/backfill
+ * Copy aggregated job templates from the DB into the current user's feed (deduped).
+ */
+integrationsRouter.post(
+  "/backfill",
+  asyncHandler(async (req, res) => {
+    const copied = await backfillAggregatedJobsForUser(req.user!._id);
+    return res.status(200).json(ok({ copied }));
   })
 );
 

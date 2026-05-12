@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Job } from "@proposalagent/shared";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
-import { notifyHttpError } from "@/lib/apiErrors";
+import { extractApiMessage, messageForHttpStatus, notifyHttpError } from "@/lib/apiErrors";
 
 export type JobsSourceFilter = "all" | "aggregated" | "manual";
 
@@ -50,8 +50,9 @@ export function useJobs(options?: UseJobsOptions) {
       });
 
       if (!res.ok) {
+        const detail = await extractApiMessage(res);
         await notifyHttpError(res);
-        throw new Error("Failed to fetch jobs");
+        throw new Error(detail ?? messageForHttpStatus(res.status));
       }
 
       const raw = await res.json();

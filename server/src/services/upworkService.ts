@@ -11,11 +11,34 @@ interface RSSItem {
   contentSnippet?: string;
 }
 
-const UPWORK_RSS_FEEDS = [
-  "https://www.upwork.com/ab/feed/jobs/rss?q=react+native&sort=recency&paging=0%3B10",
-  "https://www.upwork.com/ab/feed/jobs/rss?q=mern+stack&sort=recency&paging=0%3B10",
-  "https://www.upwork.com/ab/feed/jobs/rss?q=react+native+developer&budget=1000-&sort=recency",
+/** Build Upwork RSS URL: `paging` is `offset;count` (semicolon encoded as %3B). */
+function upworkRssFeed(query: string, offset: number, count: number): string {
+  const paging = encodeURIComponent(`${offset};${count}`);
+  return `https://www.upwork.com/ab/feed/jobs/rss?q=${encodeURIComponent(query)}&sort=recency&paging=${paging}`;
+}
+
+/** RN + remote-ish queries × pages (~600 slots pre-dedupe; aggregator dedups by guid). */
+const REACT_NATIVE_QUERIES = [
+  "react native",
+  "react native developer",
+  "react native remote",
+  "expo react native",
+  "react native typescript",
+  "mobile react native engineer",
 ];
+
+const UPWORK_PAGE_SIZE = 25;
+const UPWORK_PAGES_PER_QUERY = 4;
+
+function buildUpworkRssFeeds(): string[] {
+  const urls: string[] = [];
+  for (const q of REACT_NATIVE_QUERIES) {
+    for (let p = 0; p < UPWORK_PAGES_PER_QUERY; p += 1) {
+      urls.push(upworkRssFeed(q, p * UPWORK_PAGE_SIZE, UPWORK_PAGE_SIZE));
+    }
+  }
+  return urls;
+}
 
 const TECH_KEYWORDS = [
   "React Native",
@@ -97,18 +120,25 @@ export async function fetchUpworkJobs(): Promise<AggregatedJobData[]> {
   try {
     const allItems: RSSItem[] = [];
 
-    for (const feedUrl of UPWORK_RSS_FEEDS) {
+    for (const feedUrl of buildUpworkRssFeeds()) {
       try {
         const feed = await parser.parseURL(feedUrl);
         if (feed.items) {
           allItems.push(...feed.items);
         }
+        await new Promise((r) => setTimeout(r, 150));
       } catch (error) {
         console.error(`Error parsing Upwork feed ${feedUrl}:`, error);
       }
     }
 
-    return allItems.map((item) => {
+    const merged = new Map<string, RSSItem>();
+    for (const item of allItems) {
+      const id = item.guid || item.link || "";
+      if (id && !merged.has(id)) merged.set(id, item);
+    }
+
+    return [...merged.values()].map((item) => {
       const content = item.content || item.summary || item.contentSnippet || "";
       const fullText = `${item.title || ""} ${content}`;
 

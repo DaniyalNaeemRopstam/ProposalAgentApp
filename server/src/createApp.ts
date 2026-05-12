@@ -15,8 +15,21 @@ import { fail } from "./utils/ApiResponse";
 export function createApp(): Express {
   const app = express();
 
-  app.use(helmet());
+  /** Express default ETag lets conditional GET return 304 + empty body — fetch().json() then fails. */
+  app.set("etag", false);
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+  );
   app.use(cors(buildCorsOptions()));
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      res.setHeader("Cache-Control", "private, no-store, no-transform");
+    }
+    next();
+  });
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
   app.use(

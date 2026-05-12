@@ -9,7 +9,7 @@ import React, {
   useState,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiUrl, parseEnvelope } from "@/lib/api";
+import { apiUrl, getApiBase, parseEnvelope } from "@/lib/api";
 import { clearPaTokenCookie, setPaTokenCookie } from "@/lib/auth-cookie";
 import type { ProjectReference } from "@proposalagent/shared";
 
@@ -70,13 +70,31 @@ function persistToken(token: string | null) {
   }
 }
 
+/** Browser fetch rejects with TypeError("Failed to fetch") on connection/CORS failures. */
+function rethrowFriendlyNetwork(err: unknown): never {
+  if (err instanceof TypeError) {
+    const base = getApiBase();
+    throw new Error(
+      base
+        ? `Cannot reach the API at ${base}. Start the backend (npm run dev:server) or fix NEXT_PUBLIC_API_URL / CORS.`
+        : "Cannot reach the API. Set NEXT_PUBLIC_API_URL (e.g. in apps/web/.env.local) and ensure the backend is running."
+    );
+  }
+  throw err;
+}
+
 async function fetchMe(tok: string): Promise<AuthUser> {
-  const res = await fetch(apiUrl("/api/auth/me"), {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${tok}`,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl("/api/auth/me"), {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${tok}`,
+      },
+    });
+  } catch (e) {
+    rethrowFriendlyNetwork(e);
+  }
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg =
@@ -124,14 +142,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res = await fetch(apiUrl("/api/auth/login"), {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(apiUrl("/api/auth/login"), {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: email.trim(), password }),
+        });
+      } catch (e) {
+        rethrowFriendlyNetwork(e);
+      }
       const raw = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg =
@@ -156,19 +179,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       companyName: string;
       password: string;
     }) => {
-      const res = await fetch(apiUrl("/api/auth/register"), {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...dataIn,
-          email: dataIn.email.trim(),
-          name: dataIn.name.trim(),
-          companyName: dataIn.companyName.trim(),
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(apiUrl("/api/auth/register"), {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...dataIn,
+            email: dataIn.email.trim(),
+            name: dataIn.name.trim(),
+            companyName: dataIn.companyName.trim(),
+          }),
+        });
+      } catch (e) {
+        rethrowFriendlyNetwork(e);
+      }
       const raw = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg =

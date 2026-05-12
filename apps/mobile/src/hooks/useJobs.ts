@@ -16,7 +16,17 @@ function normalizeJobs(payload: unknown): Job[] {
   return [];
 }
 
-export type JobsPlatformFilter = "all" | "Upwork" | "LinkedIn" | "Wellfound" | "aggregated" | "manual";
+/** Matches web `JobsSourceFilter` / GET `source` query. */
+export type JobsSourceFilter = "all" | "aggregated" | "manual";
+
+export interface UseJobsOptions {
+  /** Passed as `source` to GET /api/jobs */
+  source?: JobsSourceFilter;
+  minScore?: number;
+  limit?: number;
+  /** Same as web: background refetch interval (ms). `false` disables. */
+  refetchInterval?: number | false;
+}
 
 export interface UseJobsResult {
   data: Job[];
@@ -28,28 +38,33 @@ export interface UseJobsResult {
   lastSync: Date | null;
 }
 
-export function useJobs(filter: JobsPlatformFilter = "all"): UseJobsResult {
+const DEFAULT_MIN_SCORE = 60;
+const DEFAULT_LIMIT = 100;
+const DEFAULT_REFETCH_MS = 1_000 * 60 * 15;
+
+export function useJobs(options?: UseJobsOptions): UseJobsResult {
+  const source = options?.source ?? "all";
+  const minScore = options?.minScore ?? DEFAULT_MIN_SCORE;
+  const limit = options?.limit ?? DEFAULT_LIMIT;
+  const refetchInterval = options?.refetchInterval ?? DEFAULT_REFETCH_MS;
+
   const [lastSync, setLastSync] = React.useState<Date | null>(null);
 
   const query = useQuery({
-    queryKey: ["jobs", filter],
+    queryKey: ["jobs", source, minScore, limit],
     queryFn: async (): Promise<Job[]> => {
-      const params = new URLSearchParams();
-      
-      if (filter === "aggregated") {
-        params.append("source", "aggregated");
-      } else if (filter === "manual") {
-        params.append("source", "manual");
-      } else if (filter !== "all") {
-        params.append("platform", filter);
-      }
-
-      const qs = params.toString() ? `?${params.toString()}` : "";
-      const raw = await serverApi.request<unknown>(`/api/jobs${qs}`);
+      const params = new URLSearchParams({
+        source,
+        minScore: String(minScore),
+        limit: String(limit),
+        page: "1",
+      });
+      const raw = await serverApi.request<unknown>(`/api/jobs?${params.toString()}`);
       setLastSync(new Date());
       return normalizeJobs(raw);
     },
-    staleTime: 30 * 60 * 1000, // 30 minutes for aggregated jobs
+    staleTime: 30 * 1000,
+    refetchInterval,
   });
 
   return {

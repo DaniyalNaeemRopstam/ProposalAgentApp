@@ -17,10 +17,15 @@ interface LinkedInJobResult {
 const RAPIDAPI_HOST = "linkedin-jobs-search.p.rapidapi.com";
 
 const SEARCH_QUERIES = [
-  { query: "React Native developer", remoteOnly: true },
-  { query: "MERN stack developer", remoteOnly: true },
-  { query: "React Node.js developer", remoteOnly: true },
+  { query: "React Native developer remote", remoteOnly: true },
+  { query: "React Native engineer", remoteOnly: true },
+  { query: "Expo React Native", remoteOnly: true },
+  { query: "React Native mobile", remoteOnly: true },
+  { query: "TypeScript React Native", remoteOnly: true },
 ];
+
+/** Per-query cap (RapidAPI plan may clamp). */
+const LINKEDIN_JOBS_LIMIT = 35;
 
 const TECH_KEYWORDS = [
   "React Native",
@@ -81,32 +86,51 @@ export async function fetchLinkedInJobs(): Promise<AggregatedJobData[]> {
   }
 
   try {
-    const results = await Promise.all(
-      SEARCH_QUERIES.map((searchConfig) =>
-        axios.get("https://linkedin-jobs-search.p.rapidapi.com/search", {
-          params: {
-            query: searchConfig.query,
-            remote_only: searchConfig.remoteOnly,
-            sort: "recency",
-            limit: 10,
-          },
-          headers: {
-            "X-RapidAPI-Key": RAPIDAPI_KEY,
-            "X-RapidAPI-Host": RAPIDAPI_HOST,
-          },
-          timeout: 10000,
-        })
-      )
-    );
-
     const allJobs: LinkedInJobResult[] = [];
-    for (const response of results) {
-      if (Array.isArray(response.data)) {
-        allJobs.push(...response.data);
+
+    for (const searchConfig of SEARCH_QUERIES) {
+      try {
+        const response = await axios.get(
+          "https://linkedin-jobs-search.p.rapidapi.com/search",
+          {
+            params: {
+              query: searchConfig.query,
+              remote_only: searchConfig.remoteOnly,
+              sort: "recency",
+              limit: LINKEDIN_JOBS_LIMIT,
+            },
+            headers: {
+              "X-RapidAPI-Key": RAPIDAPI_KEY,
+              "X-RapidAPI-Host": RAPIDAPI_HOST,
+            },
+            timeout: 15000,
+          }
+        );
+        if (Array.isArray(response.data)) {
+          allJobs.push(...response.data);
+        }
+      } catch (e) {
+        console.warn(
+          `[linkedin] query failed: ${searchConfig.query}`,
+          axios.isAxiosError(e) ? e.message : e
+        );
       }
+      await new Promise((r) => setTimeout(r, 250));
     }
 
-    return allJobs.map((result) => ({
+    const byKey = new Map<string, LinkedInJobResult>();
+    for (const result of allJobs) {
+      const id =
+        result.id || slugify(`${result.title}-${result.company}`, { lower: true });
+      if (!byKey.has(id)) byKey.set(id, result);
+    }
+
+    const uniq = [...byKey.values()];
+    const rnRe = /react\s*native|react-native|\bexpo\b/i;
+    const rnHits = uniq.filter((r) => rnRe.test(`${r.title} ${r.description || ""}`));
+    const list = rnHits.length > 0 ? rnHits : uniq;
+
+    return list.map((result) => ({
       platform: "LinkedIn" as const,
       title: result.title,
       externalId:
@@ -117,7 +141,7 @@ export async function fetchLinkedInJobs(): Promise<AggregatedJobData[]> {
       sourceUrl: result.url || result.applyUrl || "",
       client: {
         name: result.company,
-        country: result.location || "Remote",
+        country: result.location?.trim() || "🌐 Remote",
         verified: false,
       },
       tags: extractTechTags(result.description || ""),

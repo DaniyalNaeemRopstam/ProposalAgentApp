@@ -11,6 +11,7 @@ import {
   registerBodySchema,
   voiceProfileBodySchema,
 } from "../schemas/authSchemas";
+import { backfillAggregatedJobsForUser } from "../services/jobBackfillService";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
 import type { z } from "zod";
@@ -66,6 +67,10 @@ export async function register(req: Request, res: Response): Promise<void> {
       plan: "free",
       stats: defaultStats(),
       projectLibrary: [],
+    });
+
+    void backfillAggregatedJobsForUser(user._id).catch((err) => {
+      console.error("[auth] aggregated job backfill failed:", err);
     });
 
     const token = signAuthToken(user.id, user.email);

@@ -175,24 +175,50 @@ export async function runAggregation(): Promise<AggregationStats> {
     );
 
     if (goodJobs.length > 0) {
-      // Get all users to save jobs for
       const users = await User.find({}, { _id: 1 }).lean();
+      const externalIds = goodJobs
+        .map((j) => j.externalId)
+        .filter((id): id is string => Boolean(id));
 
       for (const user of users) {
-        const userJobs = goodJobs.map((job) => ({
-          ...job,
-          userId: user._id,
-        }));
+        const existingForUser = await Job.find(
+          {
+            userId: user._id,
+            externalId: { $in: externalIds },
+          },
+          { externalId: 1 }
+        ).lean();
+        const have = new Set(existingForUser.map((j) => j.externalId));
+
+        const userJobs = goodJobs
+          .filter((job) => job.externalId && !have.has(job.externalId))
+          .map((job) => ({
+            ...job,
+            userId: user._id,
+          }));
+
+        if (!userJobs.length) continue;
 
         try {
-          await Job.insertMany(userJobs, { ordered: false });
-          stats.newJobsAdded += userJobs.length;
-        } catch (error: any) {
-          // Handle duplicate key errors gracefully
-          if (error.code === 11000) {
-            const insertedCount =
-              error.writeErrors?.filter((e: any) => e.code !== 11000).length || 0;
-            stats.newJobsAdded += insertedCount;
+          const inserted = await Job.insertMany(userJobs, { ordered: false });
+          stats.newJobsAdded += inserted.length;
+        } catch (error: unknown) {
+          if (
+            typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code: number }).code === 11000
+          ) {
+            const bulk = error as {
+              insertedDocs?: unknown[];
+              writeErrors?: Array<{ code?: number }>;
+            };
+            if (bulk.insertedDocs?.length) {
+              stats.newJobsAdded += bulk.insertedDocs.length;
+            } else if (bulk.writeErrors?.length) {
+              const ok = bulk.writeErrors.filter((e) => e.code !== 11000).length;
+              stats.newJobsAdded += ok;
+            }
           } else {
             console.error(`[aggregator] Error saving jobs for user ${user._id}:`, error);
           }

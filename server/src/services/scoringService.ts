@@ -52,10 +52,29 @@ function extractJsonPayload(text: string): unknown {
  * Processes jobs in chunks of 10 to stay within token limits.
  * Uses a simplified prompt focused on key scoring criteria.
  */
+function fallbackScoresForJobs(jobs: JobToScore[]): ScoredJob[] {
+  return jobs.map(() => ({
+    score: 65,
+    reasons: ["Auto-scored (Anthropic unavailable)"],
+    shouldApply: false,
+    redFlags: [] as string[],
+  }));
+}
+
 export async function batchScoreJobs(jobs: JobToScore[]): Promise<ScoredJob[]> {
   if (jobs.length === 0) return [];
 
-  const anthropic = getAnthropic();
+  let anthropic: Anthropic;
+  try {
+    anthropic = getAnthropic();
+  } catch (e) {
+    console.warn(
+      "[scoringService] Anthropic unavailable; using fallback scores for batch:",
+      e instanceof Error ? e.message : e
+    );
+    return fallbackScoresForJobs(jobs);
+  }
+
   const chunks = chunkArray(jobs, 10);
   const results: ScoredJob[] = [];
 

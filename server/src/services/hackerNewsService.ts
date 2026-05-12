@@ -18,16 +18,22 @@ interface HNSearchResult {
 }
 
 const TECH_KEYWORDS = [
+  "React Native",
+  "react-native",
+  "Expo",
   "React",
   "Node",
   "MERN",
   "mobile",
-  "React Native",
   "TypeScript",
   "MongoDB",
   "Express",
   "GraphQL",
 ];
+
+/** Comments to pull from Who's Hiring (top-level; higher = longer run). */
+const HN_COMMENT_LIMIT = 400;
+const HN_BATCH_SIZE = 12;
 
 function stripHtml(html: string): string {
   return html
@@ -72,14 +78,19 @@ function extractTechTags(text: string): string[] {
 
 function isRelevantComment(text: string): boolean {
   const lowerText = text.toLowerCase();
+  const hasRN =
+    lowerText.includes("react native") ||
+    lowerText.includes("react-native") ||
+    /\bexpo\b/i.test(lowerText);
   const hasRelevantTech = TECH_KEYWORDS.some((keyword) =>
     lowerText.includes(keyword.toLowerCase())
   );
   const hasRemote =
     lowerText.includes("remote") ||
+    lowerText.includes("worldwide") ||
     lowerText.includes("distributed") ||
     lowerText.includes("anywhere");
-  return hasRelevantTech && hasRemote;
+  return hasRemote && (hasRN || hasRelevantTech);
 }
 
 async function findCurrentMonthThread(): Promise<number | null> {
@@ -144,8 +155,8 @@ async function getComment(commentId: number): Promise<HNItem | null> {
 
 async function fetchCommentsInBatches(
   commentIds: number[],
-  batchSize: number = 10,
-  limit: number = 100
+  batchSize: number = HN_BATCH_SIZE,
+  limit: number = HN_COMMENT_LIMIT
 ): Promise<HNItem[]> {
   const ids = commentIds.slice(0, limit);
   const comments: HNItem[] = [];
@@ -174,7 +185,7 @@ export async function fetchHackerNewsJobs(): Promise<AggregatedJobData[]> {
     }
 
     const commentIds = await getThreadCommentIds(threadId);
-    const comments = await fetchCommentsInBatches(commentIds, 10, 100);
+    const comments = await fetchCommentsInBatches(commentIds);
 
     const relevantComments = comments.filter(
       (c) => c?.text && isRelevantComment(c.text)

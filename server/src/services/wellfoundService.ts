@@ -18,10 +18,25 @@ interface WellfoundJob {
   skills?: string[];
 }
 
-const WELLFOUND_FEEDS = [
+/** Remote-first listings; extra pages increase volume (Wellfound may ignore unknown params). */
+const WELLFOUND_FEED_BASES = [
+  "https://wellfound.com/jobs.json?keywords=React+Native&remote=true",
   "https://wellfound.com/jobs.json?role=mobile-developer&remote=true",
   "https://wellfound.com/jobs.json?role=full-stack-engineer&remote=true",
 ];
+
+const WELLFOUND_PAGE_NUMBERS = [1, 2, 3];
+
+function buildWellfoundFeeds(): string[] {
+  const urls: string[] = [];
+  for (const base of WELLFOUND_FEED_BASES) {
+    for (const page of WELLFOUND_PAGE_NUMBERS) {
+      const sep = base.includes("?") ? "&" : "?";
+      urls.push(`${base}${sep}page=${page}`);
+    }
+  }
+  return urls;
+}
 
 const API_TIMEOUT = 10000;
 const RATE_LIMIT_RETRY_DELAY = 60000;
@@ -55,13 +70,37 @@ async function fetchWithRetry(url: string, retries = 3): Promise<WellfoundJob[]>
 export async function fetchWellfoundJobs(): Promise<AggregatedJobData[]> {
   try {
     const allJobs: WellfoundJob[] = [];
+    const seenIds = new Set<string>();
 
-    for (const feedUrl of WELLFOUND_FEEDS) {
-      const jobs = await fetchWithRetry(feedUrl);
-      allJobs.push(...jobs);
+    for (const feedUrl of buildWellfoundFeeds()) {
+      try {
+        const jobs = await fetchWithRetry(feedUrl);
+        for (const j of jobs) {
+          const id = j.id?.toString() || "";
+          if (id && !seenIds.has(id)) {
+            seenIds.add(id);
+            allJobs.push(j);
+          }
+        }
+      } catch (e) {
+        console.warn(`[wellfound] feed skipped: ${feedUrl}`, e);
+      }
     }
 
-    return allJobs.map((result) => ({
+    const lowerRn = /react\s*native|react-native|\bexpo\b/i;
+
+    const rnRemote = allJobs.filter((j) => {
+      const blob = `${j.title} ${j.description || ""}`;
+      const mobileish =
+        lowerRn.test(blob) ||
+        (Array.isArray(j.skills) && j.skills.some((s) => lowerRn.test(s)));
+      const remoteOk = Boolean(j.remote) || /\bworldwide\b|remote|distributed|anywhere/i.test(blob);
+      return mobileish && remoteOk;
+    });
+
+    const source = rnRemote.length > 0 ? rnRemote : allJobs;
+
+    return source.map((result) => ({
       platform: "Wellfound" as const,
       externalId: result.id?.toString() || "",
       title: result.title,

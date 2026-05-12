@@ -27,7 +27,7 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
     }
 
     const response = await fetch(
-      `${API_URL}/api/jobs?minScore=85&limit=5&source=aggregated`,
+      `${API_URL}/api/jobs?minScore=85&limit=20&page=1&source=aggregated`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -40,10 +40,15 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
       return BackgroundFetch.BackgroundFetchResult.Failed;
     }
 
-    const data = (await response.json()) as {
+    const raw = (await response.json()) as {
+      success?: boolean;
+      data?: { jobs?: Array<{ _id: string; title: string; budget: string }> };
       jobs?: Array<{ _id: string; title: string; budget: string }>;
     };
-    const jobs = data.jobs || [];
+    const jobs =
+      raw.success === true && raw.data?.jobs
+        ? raw.data.jobs
+        : raw.jobs ?? [];
 
     if (jobs.length > 0) {
       // Store in AsyncStorage for next app launch

@@ -48,6 +48,9 @@ const jobSchema = new Schema(
 
 jobSchema.index({ userId: 1, platform: 1 });
 jobSchema.index({ userId: 1, archived: 1, score: -1, postedAt: -1 });
-jobSchema.index({ externalId: 1, platform: 1 }, { unique: true, sparse: true });
+jobSchema.index(
+  { userId: 1, externalId: 1, platform: 1 },
+  { unique: true, sparse: true }
+);
 
 export const Job = mongoose.model("Job", jobSchema);

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -32,20 +32,23 @@ import {
   useAnalyzePasteJob,
   useDeleteJob,
   useJobs,
-  type JobsPlatformFilter,
+  type JobsSourceFilter,
 } from "../../hooks/useJobs";
 import { useIntegrationsStatus, useSyncIntegrations } from "../../hooks/useIntegrations";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
 
-const FILTERS: { key: JobsPlatformFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "Upwork", label: "Upwork" },
-  { key: "LinkedIn", label: "LinkedIn" },
-  { key: "Wellfound", label: "Wellfound" },
+const SOURCE_FILTERS: { key: JobsSourceFilter; label: string }[] = [
+  { key: "all", label: "All jobs" },
   { key: "aggregated", label: "Auto-matched" },
   { key: "manual", label: "Manual" },
+];
+
+const LIST_FILTERS: { key: "all" | "new" | "saved"; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "new", label: "New" },
+  { key: "saved", label: "Saved" },
 ];
 
 function formatRelativeTime(date: Date | null | undefined): string {
@@ -68,10 +71,12 @@ function SyncBanner({
   isRefetching,
   lastSync,
   onSync,
+  jobsFoundLabel,
 }: {
   isRefetching: boolean;
   lastSync: Date | null | undefined;
   onSync: () => void;
+  jobsFoundLabel?: string;
 }) {
   const rotation = useSharedValue(0);
 
@@ -93,7 +98,12 @@ function SyncBanner({
 
   return (
     <View style={styles.syncBanner}>
-      <Text style={styles.syncText}>Last synced: {formatRelativeTime(lastSync)}</Text>
+      <View style={styles.syncBannerTextCol}>
+        <Text style={styles.syncText}>
+          Last synced: {formatRelativeTime(lastSync)}
+          {jobsFoundLabel ? ` · ${jobsFoundLabel}` : ""}
+        </Text>
+      </View>
       <Pressable
         onPress={onSync}
         disabled={isRefetching}
@@ -144,7 +154,8 @@ function JobsSkeletonList() {
 
 export default function JobsTabScreen() {
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<JobsPlatformFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<JobsSourceFilter>("all");
+  const [listFilter, setListFilter] = useState<"all" | "new" | "saved">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -158,7 +169,7 @@ export default function JobsTabScreen() {
     refetch,
     isRefetching,
     lastSync,
-  } = useJobs(filter);
+  } = useJobs({ source: sourceFilter });
   const { data: integrationStatus } = useIntegrationsStatus();
   const syncMutation = useSyncIntegrations();
   const deleteJob = useDeleteJob();
@@ -168,21 +179,40 @@ export default function JobsTabScreen() {
   const offline =
     net.isConnected === false || net.isInternetReachable === false;
 
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const id = String(job._id);
+      const savedAt = (job as Job & { savedAt?: string | Date }).savedAt;
+      const hasSaved =
+        Boolean(savedAt) || savedIds.has(id);
+      const isAgg = job.isAggregated === true;
+      if (listFilter === "saved") return hasSaved;
+      if (listFilter === "new") {
+        return isAgg && !savedAt && !savedIds.has(id);
+      }
+      return true;
+    });
+  }, [jobs, listFilter, savedIds]);
+
   const handleSyncJobs = async () => {
     try {
       const result = await syncMutation.mutateAsync();
-      // The sync mutation automatically invalidates and refetches jobs
-      console.log(`Sync complete: ${result.stats.newJobsAdded} new jobs, ${result.stats.hotJobsFound} hot matches`);
+      console.log(
+        `Sync complete: ${result.stats.newJobsAdded} new jobs, ${result.stats.hotJobsFound} hot matches`
+      );
     } catch (error) {
       console.error("Sync failed:", error);
-      // Fallback to just refetching existing jobs
       refetch();
     }
   };
 
-  const displayLastSync = integrationStatus?.aggregation?.lastRun 
+  const displayLastSync = integrationStatus?.aggregation?.lastRun
     ? new Date(integrationStatus.aggregation.lastRun)
     : lastSync;
+
+  const displayNewCount =
+    integrationStatus?.aggregation?.lastStats?.newJobsAdded ?? 0;
+  const jobsFoundLabel = `${displayNewCount} new jobs (last worker run)`;
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedId((cur) => (cur === id ? null : id));
@@ -263,25 +293,28 @@ export default function JobsTabScreen() {
         isRefetching={isRefetching || syncMutation.isPending}
         lastSync={displayLastSync}
         onSync={handleSyncJobs}
+        jobsFoundLabel={jobsFoundLabel}
       />
       <View style={styles.headerBlock}>
         <Text style={styles.blurb}>
-          AI found{" "}
-          <Text style={styles.blurbAccent}>{jobs.length} high-fit jobs</Text> in the
-          last 2 hours across Upwork, LinkedIn & Wellfound
+          AI matched{" "}
+          <Text style={styles.blurbAccent}>{filteredJobs.length}</Text> listing
+          {filteredJobs.length !== 1 ? "s" : ""}
+          {sourceFilter === "aggregated" ? " · Auto-fetched roles" : ""}
         </Text>
+        <Text style={styles.filterSectionLabel}>Source</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillsRow}
         >
-          {FILTERS.map((f) => {
-            const active = filter === f.key;
+          {SOURCE_FILTERS.map((f) => {
+            const active = sourceFilter === f.key;
             return (
               <Pressable
                 key={f.key}
                 onPress={() => {
-                  setFilter(f.key);
+                  setSourceFilter(f.key);
                   setExpandedId(null);
                 }}
                 style={[styles.pill, active && styles.pillActive]}
@@ -292,6 +325,35 @@ export default function JobsTabScreen() {
               </Pressable>
             );
           })}
+        </ScrollView>
+        <Text style={[styles.filterSectionLabel, { marginTop: 12 }]}>Filter</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsRow}
+        >
+          {LIST_FILTERS.map((f) => {
+            const active = listFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  setListFilter(f.key);
+                  setExpandedId(null);
+                }}
+                style={[styles.pill, active && styles.pillActivePurple]}
+              >
+                <Text
+                  style={[styles.pillText, active && styles.pillTextPurple]}
+                >
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+          {(isRefetching || syncMutation.isPending) && (
+            <Text style={styles.refreshingInline}>Refreshing…</Text>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -319,14 +381,14 @@ export default function JobsTabScreen() {
         </View>
       ) : (
         <FlatList
-          data={jobs}
+          data={filteredJobs}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           initialNumToRender={5}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           contentContainerStyle={[
             styles.listContent,
-            jobs.length === 0 && styles.listEmptyGrow,
+            filteredJobs.length === 0 && styles.listEmptyGrow,
           ]}
           ListHeaderComponent={listHeader}
           refreshControl={
@@ -341,13 +403,21 @@ export default function JobsTabScreen() {
               <View style={styles.emptyIcon}>
                 <Ionicons name="briefcase-outline" size={36} color={colors.textDim} />
               </View>
-              <Text style={styles.emptyTitle}>No matches yet</Text>
+              <Text style={styles.emptyTitle}>No jobs found</Text>
               <Text style={styles.emptySub}>
-                Paste a job or check back when new listings match your profile.
+                Adjust filters or run a sync from the refresh button above. You can also
+                paste a job manually.
               </Text>
+              <Button
+                title="Sync jobs now"
+                disabled={offline || syncMutation.isPending}
+                onPress={() => void handleSyncJobs()}
+              />
               <Button
                 title="Paste a job manually"
                 disabled={offline}
+                variant="ghost"
+                style={{ marginTop: 10 }}
                 onPress={() => setPasteOpen(true)}
               />
               {offline ? (
@@ -445,9 +515,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  syncBannerTextCol: {
+    flex: 1,
+    marginRight: 8,
+  },
   syncText: {
     fontSize: 13,
     color: colors.textMuted,
+    fontFamily: fonts.regular,
+  },
+  filterSectionLabel: {
+    fontSize: 10,
+    fontFamily: fonts.semiBold,
+    color: colors.textDim,
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
+    marginBottom: 8,
+  },
+  refreshingInline: {
+    alignSelf: "center",
+    fontSize: 11,
+    color: colors.textDim,
+    marginLeft: 4,
+    paddingVertical: 10,
     fontFamily: fonts.regular,
   },
   listContent: {
@@ -492,6 +582,10 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.accentDim,
   },
+  pillActivePurple: {
+    borderColor: colors.purple,
+    backgroundColor: colors.purpleDim,
+  },
   pillText: {
     fontSize: 13,
     color: colors.textMuted,
@@ -499,6 +593,10 @@ const styles = StyleSheet.create({
   },
   pillTextActive: {
     color: colors.accentText,
+    fontFamily: fonts.semiBold,
+  },
+  pillTextPurple: {
+    color: colors.purple,
     fontFamily: fonts.semiBold,
   },
   center: {
