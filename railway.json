@@ -5,7 +5,6 @@
     "dockerfilePath": "server/Dockerfile"
   },
   "deploy": {
-    "startCommand": "cd server && npm start",
     "healthcheckPath": "/health"
   }
 }
