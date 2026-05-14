@@ -1,15 +1,18 @@
 import React, { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useAuth } from "../src/hooks/useAuth";
 import { colors } from "../src/theme/colors";
 
 export default function IndexScreen() {
   const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
     router.replace(isAuthenticated ? "/(tabs)" : "/auth/login");
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, router]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
