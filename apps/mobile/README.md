@@ -68,6 +68,8 @@ src/
 
 Native apps usually **do not** send a browser `Origin` header, so Railway **`CORS_ORIGINS`** does not need to list the mobile app (only web origins).
 
+**Android emulator + API on your computer:** `localhost` inside the emulator is not your Mac/PC. In **`__DEV__`**, the app rewrites `http://localhost` / `http://127.0.0.1` to **`http://10.0.2.2`** automatically. Ensure the API is listening on `0.0.0.0` or the host interface (default Express listen is fine). For a **remote HTTPS** API (e.g. Railway), set `EXPO_PUBLIC_API_URL` to that URL — if login still fails, confirm the emulator has internet (browser test) and restart Metro with `npx expo start -c` after changing `app.config.js` (cleartext flags apply to dev clients / rebuilds).
+
 ## 📦 Client-ready builds (EAS)
 
 Prerequisites: [Expo account](https://expo.dev), install/use EAS CLI (`npx eas-cli@latest`). From the monorepo root, install deps once: `npm install`.

@@ -1,3 +1,6 @@
+const defaultApiUrl = "http://localhost:5000";
+const resolvedApiUrl = (process.env.EXPO_PUBLIC_API_URL || defaultApiUrl).replace(/\/$/, "");
+
 module.exports = {
   expo: {
     name: "ProposalAgent",
@@ -21,6 +24,8 @@ module.exports = {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#07090F",
       },
+      /** Required for HTTP calls to dev machine (e.g. http://10.0.2.2:5000 from emulator). Not used for HTTPS production API. */
+      usesCleartextTraffic: /^http:\/\//i.test(resolvedApiUrl),
     },
     plugins: [
       "expo-router",
@@ -33,7 +38,7 @@ module.exports = {
       ],
     ],
     extra: {
-      apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000",
+      apiUrl: resolvedApiUrl,
     },
   },
 };
