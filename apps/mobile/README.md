@@ -44,21 +44,16 @@ src/
 
 ## 🚀 How to Run
 
-1. **Start Backend Server** (if not running):
-   ```bash
-   npm run dev:server
-   ```
+1. **API:** For the same backend as production, set `EXPO_PUBLIC_API_URL` (see **API configuration** below). For local-only testing, start the API: `npm run dev:server` from the repo root (defaults to `http://localhost:5000`).
 
-2. **Start Mobile App**:
+2. **Start the mobile app:**
    ```bash
    cd apps/mobile
    npx expo start
    ```
+   Or from the repo root: `npm run dev:mobile`
 
-3. **Test on Device**:
-   - Install Expo Go app on your phone
-   - Scan QR code from terminal
-   - Or use iOS Simulator / Android Emulator
+3. **On a device:** Install **Expo Go**, scan the QR code from the terminal, or press `i` / `a` for simulator or emulator.
 
 ## 🔄 API configuration
 
