@@ -60,21 +60,51 @@ src/
    - Scan QR code from terminal
    - Or use iOS Simulator / Android Emulator
 
-## 🔄 API Configuration
+## 🔄 API configuration
 
-The app connects to `http://localhost:5000` by default. To change:
+`EXPO_PUBLIC_API_URL` must point at your deployed API (no trailing slash). It is read at **bundle time** (local Metro and EAS cloud builds).
 
-1. Set environment variable:
+- **Local / Expo Go:** copy `.env.example` to `.env` in `apps/mobile` and adjust, or run:
+  ```bash
+  cd apps/mobile
+  EXPO_PUBLIC_API_URL=https://your-api.up.railway.app npx expo start
+  ```
+- **EAS builds:** `eas.json` sets `EXPO_PUBLIC_API_URL` for `preview` and `production` profiles (edit there if your Railway URL changes). Alternatively, remove those `env` blocks and use [EAS Environment Variables](https://docs.expo.dev/build-reference/variables/) or `eas secret:create`.
+
+Native apps usually **do not** send a browser `Origin` header, so Railway **`CORS_ORIGINS`** does not need to list the mobile app (only web origins).
+
+## 📦 Client-ready builds (EAS)
+
+Prerequisites: [Expo account](https://expo.dev), install/use EAS CLI (`npx eas-cli@latest`). From the monorepo root, install deps once: `npm install`.
+
+1. **Link the app to EAS** (one time per machine/repo):
    ```bash
-   export EXPO_PUBLIC_API_URL=http://your-api-url
+   cd apps/mobile
+   npx eas-cli@latest login
+   npx eas-cli@latest init
+   ```
+   Follow prompts; this adds `extra.eas.projectId` to your Expo config on Expo’s servers.
+
+2. **Android APK (easy to share)** — internal distribution, installable APK:
+   ```bash
+   cd apps/mobile
+   npm run build:android:apk
+   ```
+   Or from repo root: `npm run build:mobile:apk`  
+   When the build finishes, open the link in the terminal (or [expo.dev](https://expo.dev) → your project → Builds) and **download the APK** to send to your client. They must allow “Install from unknown sources” for that file.
+
+3. **Android AAB (Google Play)** — Play Store upload:
+   ```bash
+   npm run build:android:aab
    ```
 
-2. Or edit `app.config.js`:
-   ```js
-   extra: {
-     apiUrl: "http://your-api-url",
-   }
+4. **iOS** — requires an **Apple Developer** account ($99/yr). Internal / TestFlight:
+   ```bash
+   npm run build:ios
    ```
+   Distribute via TestFlight or Ad Hoc provisioning; Expo’s docs cover [iOS credentials](https://docs.expo.dev/app-signing/app-credentials/).
+
+**Profiles** (see `eas.json`): `preview` = APK + internal; `production` = store-style builds with version auto-increment on Android.
 
 ## 🎯 Key Features Demonstrated
 

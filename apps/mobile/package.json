@@ -6,7 +6,10 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios"
+    "ios": "expo start --ios",
+    "build:android:apk": "eas build --platform android --profile preview",
+    "build:android:aab": "eas build --platform android --profile production",
+    "build:ios": "eas build --platform ios --profile preview"
   },
   "dependencies": {
     "@expo-google-fonts/space-grotesk": "^0.2.3",
