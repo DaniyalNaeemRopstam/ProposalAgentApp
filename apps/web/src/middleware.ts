@@ -19,6 +19,17 @@ async function cookieTokenIsValid(token: string | undefined): Promise<boolean> {
   }
 }
 
+/** Routes that require a signed-in user (billing & sensitive account actions). */
+function requiresAuth(pathname: string, searchParams: URLSearchParams): boolean {
+  if (pathname.startsWith("/dashboard/billing")) return true;
+  if (pathname === "/dashboard/settings") {
+    const tab = searchParams.get("tab");
+    if (tab === "billing") return true;
+    if (tab === "account" || tab === "delete") return true;
+  }
+  return false;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(PA_COOKIE)?.value;
@@ -28,13 +39,10 @@ export async function middleware(request: NextRequest) {
   const isRegister = pathname === "/register" || pathname.startsWith("/register/");
   const isAuthPage = isLogin || isRegister;
 
-  const isProtected =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding");
-
-  if (isProtected && !authed) {
+  if (requiresAuth(pathname, request.nextUrl.searchParams) && !authed) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("from", pathname);
+    url.searchParams.set("from", pathname + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 
@@ -49,5 +57,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/onboarding/:path*", "/login", "/register"],
+  matcher: [
+    "/dashboard/:path*",
+    "/login",
+    "/register",
+  ],
 };

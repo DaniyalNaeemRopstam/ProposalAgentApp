@@ -110,6 +110,11 @@ export function JobCard({
           <View style={styles.headMain}>
             <View style={styles.titleRow}>
               <PlatformBadge platform={job.platform} />
+              {job.isDemo ? (
+                <View style={[styles.badge, { backgroundColor: colors.surfaceHover }]}>
+                  <Text style={[styles.badgeText, { color: colors.textDim }]}>DEMO</Text>
+                </View>
+              ) : null}
               <SourceBadge isAggregated={job.isAggregated} />
               <Text style={styles.title} numberOfLines={2}>
                 {job.title}

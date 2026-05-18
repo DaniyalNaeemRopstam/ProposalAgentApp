@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { GuestSignUpModalProvider } from "@/components/GuestSignUpModalProvider";
 import { UpgradeModalProvider, useUpgradeModal } from "@/components/UpgradeModalProvider";
 import { registerUpgradeModalHandler } from "@/lib/apiErrors";
 import { C } from "@/styles/theme";
@@ -43,12 +44,14 @@ function UpgradeHandlerRegistration() {
 
 export function AppShellProviders({ children }: { children: React.ReactNode }) {
   return (
-    <UpgradeModalProvider>
-      <ErrorBoundary>
-        <UpgradeHandlerRegistration />
-        {children}
-        <HotToaster />
-      </ErrorBoundary>
-    </UpgradeModalProvider>
+    <GuestSignUpModalProvider>
+      <UpgradeModalProvider>
+        <ErrorBoundary>
+          <UpgradeHandlerRegistration />
+          {children}
+          <HotToaster />
+        </ErrorBoundary>
+      </UpgradeModalProvider>
+    </GuestSignUpModalProvider>
   );
 }

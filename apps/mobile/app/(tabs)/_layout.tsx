@@ -1,32 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, useRouter } from "expo-router";
-import React, { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { Tabs } from "expo-router";
+import React from "react";
+import { View } from "react-native";
+import { GuestBanner } from "../../src/components/GuestBanner";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
-import { useAuth } from "../../src/context/AuthContext";
 import { colors } from "../../src/theme/colors";
 
 export default function TabLayout() {
-  const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated) {
-      router.replace("/auth/login");
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  if (isLoading || !isAuthenticated) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
-  }
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <GuestBanner />
       <OfflineBanner />
       <View style={{ flex: 1 }}>
         <Tabs

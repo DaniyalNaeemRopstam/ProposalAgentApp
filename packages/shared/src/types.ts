@@ -56,6 +56,8 @@ export interface Job {
   externalId?: string;
   fetchedAt?: Date;
   isAggregated?: boolean;
+  /** Preview / guest mode sample listing — not from the API */
+  isDemo?: boolean;
 }
 
 export interface ClientInfo {

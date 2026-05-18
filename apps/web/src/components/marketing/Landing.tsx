@@ -133,6 +133,9 @@ function NavBar() {
           </a>
         </nav>
         <div className="flex shrink-0 items-center gap-2">
+          <Link href="/dashboard/jobs" className={ghostLink}>
+            Try demo
+          </Link>
           <Link href="/login" className={ghostLink}>
             Sign in
           </Link>

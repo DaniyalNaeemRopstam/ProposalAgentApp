@@ -26,6 +26,7 @@ import { Button } from "../../components/ui/Button";
 import { ScoreRing } from "../../components/ScoreRing";
 import { useJob } from "../../hooks/useJob";
 import { useJobs } from "../../hooks/useJobs";
+import { useGuestAiGate } from "../../hooks/useGuestAiGate";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { serverApi } from "../../lib/api";
 import { requestMarkProposalSent } from "../../lib/markProposalSentApi";
@@ -71,6 +72,7 @@ export default function ProposalWriterScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const net = useNetworkStatus();
+  const { requireAuthForAi } = useGuestAiGate();
   const offline =
     net.isConnected === false || net.isInternetReachable === false;
 
@@ -172,6 +174,8 @@ export default function ProposalWriterScreen() {
 
   const runGenerate = useCallback(
     async (source: ApiJobRecord) => {
+      if (!requireAuthForAi()) return;
+
       const jid = normalizeJobId(source._id) || jobId;
       if (!jid) {
         setGenerateError("Missing job reference.");
@@ -242,7 +246,7 @@ export default function ProposalWriterScreen() {
         setGenerateError(msg);
       }
     },
-    [jobId, mode, variant, scrollProposalIntoView]
+    [jobId, mode, variant, scrollProposalIntoView, requireAuthForAi]
   );
 
   const wordCount = proposalText.trim()

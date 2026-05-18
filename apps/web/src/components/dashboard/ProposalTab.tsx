@@ -9,6 +9,9 @@ import { cn } from "@/lib/cn";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import toast from "react-hot-toast";
 import { notifyHttpError, notifyNetworkError } from "@/lib/apiErrors";
+import { useAuth } from "@/context/AuthContext";
+import { findDemoJobById } from "@proposalagent/shared";
+import { useGuestAiGate } from "@/hooks/useGuestAiGate";
 
 /** Lean job payload from GET /api/jobs/:id */
 type ApiJobRecord = Record<string, unknown> & {
@@ -83,6 +86,8 @@ function buildGenerateBody(job: ApiJobRecord, jobIdMongo: string) {
 export function ProposalTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isGuest } = useAuth();
+  const { requireAuthForAi } = useGuestAiGate();
   const jobIdFromQuery = searchParams.get("jobId");
 
   const [job, setJob] = useState<ApiJobRecord | null>(null);
@@ -119,6 +124,16 @@ export function ProposalTab() {
       }
 
       setJob(null);
+
+      if (isGuest) {
+        const demo = findDemoJobById(jobIdFromQuery.trim());
+        if (!cancelled) {
+          if (demo) setJob(demo as unknown as ApiJobRecord);
+          else setLoadError("Demo job not found.");
+        }
+        return;
+      }
+
       try {
         const res = await fetch(apiUrl(`/api/jobs/${jobIdFromQuery.trim()}`), {
           credentials: "include",
@@ -162,7 +177,7 @@ export function ProposalTab() {
     return () => {
       cancelled = true;
     };
-  }, [jobIdFromQuery]);
+  }, [jobIdFromQuery, isGuest]);
 
   const mongoJobId = useMemo(
     () => (job ? normalizeJobId(job._id) : jobIdFromQuery?.trim() ?? ""),
@@ -171,6 +186,8 @@ export function ProposalTab() {
 
   const handleGenerateInternal = useCallback(
     async (sourceJob: ApiJobRecord) => {
+      if (!requireAuthForAi()) return;
+
       const jid = normalizeJobId(sourceJob._id) || mongoJobId;
       if (!jid) {
         setGenerateError("Missing job reference.");

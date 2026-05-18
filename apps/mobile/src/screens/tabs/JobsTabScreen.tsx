@@ -35,6 +35,7 @@ import {
   type JobsSourceFilter,
 } from "../../hooks/useJobs";
 import { useIntegrationsStatus, useSyncIntegrations } from "../../hooks/useIntegrations";
+import { useGuestAiGate } from "../../hooks/useGuestAiGate";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
@@ -218,12 +219,18 @@ export default function JobsTabScreen() {
     setExpandedId((cur) => (cur === id ? null : id));
   }, []);
 
-  const onGenerate = useCallback((job: Job) => {
-    router.push({
-      pathname: "/(tabs)/proposal",
-      params: { jobId: String(job._id) },
-    });
-  }, []);
+  const { requireAuthForAi } = useGuestAiGate();
+
+  const onGenerate = useCallback(
+    (job: Job) => {
+      if (!requireAuthForAi()) return;
+      router.push({
+        pathname: "/(tabs)/proposal",
+        params: { jobId: String(job._id) },
+      });
+    },
+    [requireAuthForAi]
+  );
 
   const renderLeftActions = useCallback(() => {
     return (

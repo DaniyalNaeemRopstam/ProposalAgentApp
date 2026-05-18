@@ -39,6 +39,7 @@ type AuthContextValue = {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isGuest: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: {
     name: string;
@@ -120,6 +121,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!token && meQuery.isSuccess && !!meQuery.data;
 
+  const isGuest = hydrated && !token;
+
   const loginMut = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
       const { token: t } = await serverApiPublic.request<{
@@ -194,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isLoading,
       isAuthenticated,
+      isGuest,
       login,
       register,
       logout,
@@ -204,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isLoading,
       isAuthenticated,
+      isGuest,
       login,
       register,
       logout,

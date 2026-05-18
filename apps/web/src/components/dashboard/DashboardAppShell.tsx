@@ -7,7 +7,9 @@ import { Icon } from "@/components/dashboard/Icon";
 import { StatCard } from "@/components/ui/StatCard";
 import { useSocket } from "@/hooks/useSocket";
 import { useAnalyticsOverview } from "@/hooks/useAnalytics";
+import { GuestBanner } from "@/components/GuestBanner";
 import { useAuth } from "@/context/AuthContext";
+import { DEMO_ANALYTICS_OVERVIEW } from "@proposalagent/shared";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
 
@@ -78,7 +80,7 @@ function CountUpRate({ value }: { value: number }) {
 export function DashboardAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isGuest, isAuthenticated } = useAuth();
   const { data: overview } = useAnalyticsOverview();
 
   const [liveEvents, setLiveEvents] = useState(0);
@@ -149,10 +151,11 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [statPulse]);
 
-  const sent = overview?.proposalsSent ?? 0;
-  const replyRate = overview?.replyRate ?? 0;
-  const winRate = overview?.winRate ?? 0;
-  const revenueK = overview != null ? (overview.revenueWon ?? 0) / 1000 : 0;
+  const stats = isGuest ? DEMO_ANALYTICS_OVERVIEW : overview;
+  const sent = stats?.proposalsSent ?? 0;
+  const replyRate = stats?.replyRate ?? 0;
+  const winRate = stats?.winRate ?? 0;
+  const revenueK = stats != null ? (stats.revenueWon ?? 0) / 1000 : 0;
 
   return (
     <div className="flex min-h-screen bg-bg text-text">
@@ -328,42 +331,69 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
                 />
               </span>
             </div>
-            <div className="relative" ref={userMenuRef}>
-              <button
-                type="button"
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-surfaceHover text-textMuted hover:border-borderBright hover:text-text transition-colors"
-                aria-label="Account"
-              >
-                <Icon name="user" size={18} />
-              </button>
-              {showUserMenu && user && (
-                <div
-                  className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-lg z-50"
-                  style={{ boxShadow: `0 4px 12px rgba(0, 0, 0, 0.15)` }}
+            {isGuest ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-textMuted transition-colors hover:border-borderBright hover:text-text"
                 >
-                  <div className="px-4 py-3 border-b border-border">
-                    <div className="text-sm font-medium text-text">{user.name}</div>
-                    <div className="text-xs text-textMuted mt-1">{user.email}</div>
-                    {user.companyName && (
-                      <div className="text-xs text-textMuted">{user.companyName}</div>
-                    )}
+                  Log in
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-all hover:bg-[#6B8FFF]"
+                >
+                  Sign up free
+                </Link>
+              </div>
+            ) : (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-surfaceHover text-textMuted hover:border-borderBright hover:text-text transition-colors"
+                  aria-label="Account"
+                >
+                  <Icon name="user" size={18} />
+                </button>
+                {user?.plan ? (
+                  <span
+                    className="pointer-events-none absolute -bottom-1 -right-1 rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide"
+                    style={{ background: C.accentDim, color: C.accentText }}
+                  >
+                    {user.plan}
+                  </span>
+                ) : null}
+                {showUserMenu && user && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-lg z-50"
+                    style={{ boxShadow: `0 4px 12px rgba(0, 0, 0, 0.15)` }}
+                  >
+                    <div className="px-4 py-3 border-b border-border">
+                      <div className="text-sm font-medium text-text">{user.name}</div>
+                      <div className="text-xs text-textMuted mt-1">{user.email}</div>
+                      {user.companyName ? (
+                        <div className="text-xs text-textMuted">{user.companyName}</div>
+                      ) : null}
+                    </div>
+                    <div className="px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-textMuted hover:bg-surfaceHover hover:text-text transition-colors"
+                      >
+                        <Icon name="logout" size={16} />
+                        <span>Logout</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="px-2 py-2">
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-textMuted hover:bg-surfaceHover hover:text-text transition-colors"
-                    >
-                      <Icon name="logout" size={16} />
-                      <span>Logout</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
+
+        <GuestBanner />
 
         <div
           className={cn(

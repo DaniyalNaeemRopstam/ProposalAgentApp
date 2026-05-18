@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { Job } from "@proposalagent/shared";
+import { SAMPLE_JOBS, type Job } from "@proposalagent/shared";
+import { useAuth } from "@/context/AuthContext";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import { extractApiMessage, messageForHttpStatus, notifyHttpError } from "@/lib/apiErrors";
 
@@ -30,14 +31,16 @@ export type UseJobsOptions = {
 };
 
 export function useJobs(options?: UseJobsOptions) {
+  const { isGuest } = useAuth();
   const source = options?.source ?? "all";
   const minScore = options?.minScore ?? 60;
   const limit = options?.limit ?? 100;
   const refetchInterval = options?.refetchInterval ?? 1_000 * 60 * 15;
 
   return useQuery({
-    queryKey: ["jobs", source, minScore, limit],
+    queryKey: ["jobs", source, minScore, limit, isGuest ? "guest" : "auth"],
     queryFn: async (): Promise<Job[]> => {
+      if (isGuest) return [...SAMPLE_JOBS];
       const params = new URLSearchParams({
         source,
         minScore: String(minScore),
@@ -60,6 +63,6 @@ export function useJobs(options?: UseJobsOptions) {
       return normalizeJobs(data);
     },
     staleTime: 30 * 1000,
-    refetchInterval,
+    refetchInterval: isGuest ? false : refetchInterval,
   });
 }

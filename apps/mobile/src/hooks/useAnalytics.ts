@@ -1,4 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  DEMO_ANALYTICS_INSIGHTS,
+  DEMO_ANALYTICS_MONTHLY,
+  DEMO_ANALYTICS_OVERVIEW,
+  DEMO_ANALYTICS_PLATFORMS,
+} from "@proposalagent/shared";
+import { useAuth } from "../context/AuthContext";
 import { serverApi } from "../lib/api";
 
 export interface UserStats {
@@ -31,36 +38,49 @@ export interface AIInsight {
 }
 
 export function useAnalyticsOverview() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "overview"],
-    queryFn: () => serverApi.request<UserStats>("/api/analytics/overview"),
+    queryKey: ["analytics", "overview", isGuest ? "guest" : "auth"],
+    queryFn: () =>
+      isGuest
+        ? Promise.resolve(DEMO_ANALYTICS_OVERVIEW)
+        : serverApi.request<UserStats>("/api/analytics/overview"),
     staleTime: 60 * 1000,
   });
 }
 
 export function useAnalyticsMonthly() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "monthly"],
+    queryKey: ["analytics", "monthly", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      serverApi.request<MonthlyData[]>("/api/analytics/monthly"),
+      isGuest
+        ? Promise.resolve(DEMO_ANALYTICS_MONTHLY)
+        : serverApi.request<MonthlyData[]>("/api/analytics/monthly"),
     staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useAnalyticsPlatforms() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "platforms"],
+    queryKey: ["analytics", "platforms", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      serverApi.request<PlatformData[]>("/api/analytics/platforms"),
+      isGuest
+        ? Promise.resolve(DEMO_ANALYTICS_PLATFORMS)
+        : serverApi.request<PlatformData[]>("/api/analytics/platforms"),
     staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useAnalyticsInsights() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "insights"],
+    queryKey: ["analytics", "insights", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      serverApi.request<AIInsight[]>("/api/analytics/insights"),
+      isGuest
+        ? Promise.resolve(DEMO_ANALYTICS_INSIGHTS)
+        : serverApi.request<AIInsight[]>("/api/analytics/insights"),
     staleTime: 24 * 60 * 60 * 1000,
   });
 }

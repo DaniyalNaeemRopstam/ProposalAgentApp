@@ -32,6 +32,8 @@ type AuthContextValue = {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /** No token — preview mode with demo data */
+  isGuest: boolean;
   authError: Error | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: {
@@ -140,6 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!token && meQuery.isSuccess && !!meQuery.data;
 
+  const isGuest = mounted && !token;
+
   const login = useCallback(
     async (email: string, password: string) => {
       let res: Response;
@@ -235,6 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isLoading,
       isAuthenticated,
+      isGuest,
       authError,
       login,
       register,
@@ -246,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isLoading,
       isAuthenticated,
+      isGuest,
       authError,
       login,
       register,

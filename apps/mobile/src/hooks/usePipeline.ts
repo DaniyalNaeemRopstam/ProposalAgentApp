@@ -1,4 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  demoPipelineGrouped,
+  DEMO_PIPELINE_TOTAL_VALUE,
+} from "@proposalagent/shared";
+import { useAuth } from "../context/AuthContext";
 import { serverApi } from "../lib/api";
 
 export const PIPELINE_STAGE_ORDER = [
@@ -42,12 +47,19 @@ function normalizeGrouped(
 }
 
 export function usePipeline() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["pipeline"],
+    queryKey: ["pipeline", isGuest ? "guest" : "auth"],
     queryFn: async (): Promise<{
       grouped: Record<PipelineStageId, PipelineDealRow[]>;
       totalValue: number;
     }> => {
+      if (isGuest) {
+        return {
+          grouped: demoPipelineGrouped() as Record<PipelineStageId, PipelineDealRow[]>,
+          totalValue: DEMO_PIPELINE_TOTAL_VALUE,
+        };
+      }
       const data = await serverApi.request<PipelineListPayload>("/api/pipeline");
       const grouped = normalizeGrouped(data.grouped ?? {});
       const totalValue =

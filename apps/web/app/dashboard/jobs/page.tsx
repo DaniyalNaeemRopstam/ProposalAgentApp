@@ -15,6 +15,8 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 import toast from "react-hot-toast";
 import type { Job } from "@proposalagent/shared";
+import { useAuth } from "@/context/AuthContext";
+import { useGuestAiGate } from "@/hooks/useGuestAiGate";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
 
@@ -36,9 +38,23 @@ function jobKey(job: Job, i: number): string {
   return j._id || j.id || `job-${i}`;
 }
 
+function DemoBadge() {
+  return (
+    <span
+      title="Sign up to see real matched jobs for your profile"
+      className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textDim"
+      style={{ background: C.surfaceHover }}
+    >
+      DEMO
+    </span>
+  );
+}
+
 export default function JobsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isGuest } = useAuth();
+  const { requireAuthForAi } = useGuestAiGate();
   const [sourceFilter, setSourceFilter] = useState<JobsSourceFilter>("all");
   const [savedFilter, setSavedFilter] = useState<SavedFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -103,6 +119,7 @@ export default function JobsPage() {
   const [showCustom, setShowCustom] = useState(false);
 
   const handleGenerateProposal = (job: Job) => {
+    if (!requireAuthForAi()) return;
     const jobId = (job as Job & { _id?: string; id?: string })._id || (job as Job & { id?: string }).id || String(Math.random());
     router.push(`/dashboard/proposals?jobId=${encodeURIComponent(String(jobId))}`);
   };
@@ -174,7 +191,7 @@ export default function JobsPage() {
           </div>
           <Btn
             onClick={() => void handleSyncNow()}
-            disabled={syncMutation.isPending}
+            disabled={syncMutation.isPending || isGuest}
             className="shrink-0"
           >
             {syncMutation.isPending ? (
@@ -316,6 +333,7 @@ export default function JobsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <PlatformBadge platform={job.platform} />
+                      {job.isDemo ? <DemoBadge /> : null}
                       {job.isAggregated ? (
                         <span
                           className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"

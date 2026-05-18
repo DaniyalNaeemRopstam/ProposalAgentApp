@@ -1,6 +1,13 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  DEMO_ANALYTICS_INSIGHTS,
+  DEMO_ANALYTICS_MONTHLY,
+  DEMO_ANALYTICS_OVERVIEW,
+  DEMO_ANALYTICS_PLATFORMS,
+} from "@proposalagent/shared";
+import { useAuth } from "@/context/AuthContext";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 
@@ -90,34 +97,42 @@ async function fetchAnalyticsInsights(): Promise<AIInsight[]> {
 }
 
 export function useAnalyticsOverview() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "overview"],
-    queryFn: fetchAnalyticsOverview,
-    staleTime: 60 * 1000, // 1 minute
+    queryKey: ["analytics", "overview", isGuest ? "guest" : "auth"],
+    queryFn: () =>
+      isGuest ? Promise.resolve(DEMO_ANALYTICS_OVERVIEW) : fetchAnalyticsOverview(),
+    staleTime: 60 * 1000,
   });
 }
 
 export function useAnalyticsMonthly() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "monthly"],
-    queryFn: fetchAnalyticsMonthly,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: ["analytics", "monthly", isGuest ? "guest" : "auth"],
+    queryFn: () =>
+      isGuest ? Promise.resolve(DEMO_ANALYTICS_MONTHLY) : fetchAnalyticsMonthly(),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useAnalyticsPlatforms() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "platforms"],
-    queryFn: fetchAnalyticsPlatforms,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: ["analytics", "platforms", isGuest ? "guest" : "auth"],
+    queryFn: () =>
+      isGuest ? Promise.resolve(DEMO_ANALYTICS_PLATFORMS) : fetchAnalyticsPlatforms(),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useAnalyticsInsights() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["analytics", "insights"],
-    queryFn: fetchAnalyticsInsights,
-    staleTime: 24 * 60 * 60 * 1000, // 24 hours (matches server cache)
+    queryKey: ["analytics", "insights", isGuest ? "guest" : "auth"],
+    queryFn: () =>
+      isGuest ? Promise.resolve(DEMO_ANALYTICS_INSIGHTS) : fetchAnalyticsInsights(),
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 

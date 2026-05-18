@@ -1,6 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import {
+  demoPipelineGrouped,
+  DEMO_PIPELINE_TOTAL_VALUE,
+} from "@proposalagent/shared";
+import { useAuth } from "@/context/AuthContext";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 
@@ -65,9 +70,16 @@ async function fetchPipeline(): Promise<{
 }
 
 export function usePipeline() {
+  const { isGuest } = useAuth();
   return useQuery({
-    queryKey: ["pipeline"],
-    queryFn: fetchPipeline,
+    queryKey: ["pipeline", isGuest ? "guest" : "auth"],
+    queryFn: () =>
+      isGuest
+        ? Promise.resolve({
+            grouped: demoPipelineGrouped() as Record<PipelineStageId, PipelineDealRow[]>,
+            totalValue: DEMO_PIPELINE_TOTAL_VALUE,
+          })
+        : fetchPipeline(),
     staleTime: 20 * 1000,
   });
 }
