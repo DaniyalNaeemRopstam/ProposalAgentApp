@@ -49,9 +49,11 @@ export type PlatformsResponse = {
   totalEnabled: number;
 };
 
-export function useIntegrationsStatus() {
+export function useIntegrationsStatus(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled !== false;
   return useQuery({
     queryKey: ["integrations", "status"],
+    enabled,
     queryFn: async (): Promise<IntegrationsStatus> => {
       const res = await fetch(apiUrl("/api/integrations/status"), {
         credentials: "include",

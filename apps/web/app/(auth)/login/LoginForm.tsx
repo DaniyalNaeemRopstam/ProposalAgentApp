@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
+import { isApiUrlMisconfigured } from "@/lib/authApiErrors";
+import { getApiBase } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { C } from "@/styles/theme";
 
@@ -25,6 +27,7 @@ export function LoginForm() {
   }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const apiMisconfigured = isApiUrlMisconfigured();
 
   if (authBoot) {
     return (
@@ -85,6 +88,21 @@ export function LoginForm() {
         className="rounded-xl border border-border bg-surface p-4 shadow-[0_0_0_1px_rgba(79,124,255,0.06)] sm:p-6"
         style={{ boxShadow: `0 0 24px ${C.accent}12` }}
       >
+        {apiMisconfigured ? (
+          <div
+            className="mb-4 rounded-lg border px-3 py-2 text-sm"
+            style={{
+              borderColor: `${C.warn}55`,
+              background: C.warnDim,
+              color: C.warn,
+            }}
+          >
+            API URL is not configured. Set NEXT_PUBLIC_API_URL in Vercel to your Railway URL
+            (e.g. https://proposalagentapp-production.up.railway.app) and redeploy. Current:{" "}
+            {getApiBase() || "missing"}
+          </div>
+        ) : null}
+
         {formError ? (
           <div
             className="mb-4 rounded-lg border px-3 py-2 text-sm"

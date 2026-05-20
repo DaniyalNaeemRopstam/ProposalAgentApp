@@ -68,6 +68,12 @@ export async function notifyHttpError(res: Response): Promise<void> {
   if (res.status === 401) {
     toast.error(msg, { duration: 4000, style: toastDark });
     if (typeof window !== "undefined") {
+      const hadSession =
+        !!(
+          localStorage.getItem("pa_token")?.trim() ||
+          localStorage.getItem("token")?.trim() ||
+          localStorage.getItem("authToken")?.trim()
+        );
       try {
         localStorage.removeItem("pa_token");
         localStorage.removeItem("token");
@@ -75,9 +81,11 @@ export async function notifyHttpError(res: Response): Promise<void> {
       } catch {
         //
       }
+      // Guests browse /dashboard without a token — API 401s must not send them to login.
       if (
-        window.location.pathname.startsWith("/dashboard") ||
-        window.location.pathname.startsWith("/onboarding")
+        hadSession &&
+        (window.location.pathname.startsWith("/dashboard") ||
+          window.location.pathname.startsWith("/onboarding"))
       ) {
         window.location.assign("/login?expired=1");
       }

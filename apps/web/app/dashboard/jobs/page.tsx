@@ -67,7 +67,7 @@ export default function JobsPage() {
     limit: 100,
   });
 
-  const { data: intStatus } = useIntegrationsStatus();
+  const { data: intStatus } = useIntegrationsStatus({ enabled: !isGuest });
   const syncMutation = useSyncIntegrations();
 
   const filteredJobs = useMemo(() => {

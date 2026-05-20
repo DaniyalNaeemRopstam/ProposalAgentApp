@@ -9,6 +9,7 @@ import React, {
   useState,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { parseAuthApiError } from "@/lib/authApiErrors";
 import { apiUrl, getApiBase, parseEnvelope } from "@/lib/api";
 import { clearPaTokenCookie, setPaTokenCookie } from "@/lib/auth-cookie";
 import type { ProjectReference } from "@proposalagent/shared";
@@ -161,11 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const raw = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg =
-          raw && typeof raw === "object" && "message" in raw
-            ? String((raw as { message: unknown }).message)
-            : "Invalid email or password.";
-        throw new Error(msg);
+        throw new Error(parseAuthApiError(res, raw));
       }
       const data = parseEnvelope<{ token: string; user: AuthUser }>(raw);
       persistToken(data.token);
@@ -203,11 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const raw = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg =
-          raw && typeof raw === "object" && "message" in raw
-            ? String((raw as { message: unknown }).message)
-            : "Registration failed.";
-        throw new Error(msg);
+        throw new Error(parseAuthApiError(res, raw));
       }
       const data = parseEnvelope<{ token: string; user: AuthUser }>(raw);
       persistToken(data.token);
