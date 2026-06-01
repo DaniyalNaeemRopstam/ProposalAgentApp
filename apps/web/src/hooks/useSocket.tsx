@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { io } from "socket.io-client";
 import toast from "react-hot-toast";
-import { getApiBase } from "@/lib/api";
+import { getSocketBase } from "@/lib/api";
 import { C } from "@/styles/theme";
 
 export type DashboardSocketCallbacks = {
@@ -59,7 +59,7 @@ export function useSocket(callbacks?: DashboardSocketCallbacks): void {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const base = getApiBase() || window.location.origin;
+    const base = getSocketBase();
     if (!base) return;
 
     const token =

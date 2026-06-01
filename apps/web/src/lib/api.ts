@@ -1,11 +1,7 @@
 import { PA_TOKEN_COOKIE } from "@/lib/auth-cookie";
 
-/**
- * Backend base URL — same origin only works if proxied; default from env targets Express.
- * In development, defaults to http://127.0.0.1:5000 so sign-in works when env lives only at
- * the monorepo root (Next reads apps/web/.env*, not ../../.env).
- */
-export function getApiBase(): string {
+/** Raw backend URL from env (Railway / local Express). Never the Vercel frontend URL. */
+export function getConfiguredApiBackend(): string {
   const fromEnv = (
     typeof process.env.NEXT_PUBLIC_API_URL === "string"
       ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
@@ -15,6 +11,36 @@ export function getApiBase(): string {
   if (process.env.NODE_ENV === "development") {
     return "http://127.0.0.1:5000";
   }
+  return "";
+}
+
+function isFrontendHostUrl(base: string): boolean {
+  try {
+    const h = new URL(base).hostname.toLowerCase();
+    return h.endsWith(".vercel.app") || h.endsWith(".netlify.app");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Base URL for browser `fetch` calls.
+ * When a remote backend is configured, returns "" so requests hit same-origin `/api/*`
+ * and Next.js rewrites proxy to Railway/local Express (avoids CORS).
+ */
+export function getApiBase(): string {
+  const backend = getConfiguredApiBackend();
+  if (typeof window !== "undefined" && backend && !isFrontendHostUrl(backend)) {
+    return "";
+  }
+  return backend;
+}
+
+/** Direct backend URL — used for Socket.IO (cannot use HTTP rewrites). */
+export function getSocketBase(): string {
+  const backend = getConfiguredApiBackend();
+  if (backend) return backend;
+  if (typeof window !== "undefined") return window.location.origin;
   return "";
 }
 

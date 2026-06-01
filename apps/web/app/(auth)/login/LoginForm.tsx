@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
 import { isApiUrlMisconfigured } from "@/lib/authApiErrors";
-import { getApiBase } from "@/lib/api";
+import { getConfiguredApiBackend } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { C } from "@/styles/theme";
 
@@ -99,7 +99,7 @@ export function LoginForm() {
           >
             API URL must be your Railway backend, not this Vercel site. Set NEXT_PUBLIC_API_URL
             (e.g. https://proposalagentapp-production.up.railway.app) in Vercel → Environment
-            Variables and redeploy. Current: {getApiBase() || "missing"}
+            Variables and redeploy. Backend: {getConfiguredApiBackend() || "missing"}
           </div>
         ) : null}
 

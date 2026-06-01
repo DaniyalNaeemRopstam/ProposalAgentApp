@@ -1,4 +1,4 @@
-import { getApiBase } from "@/lib/api";
+import { getConfiguredApiBackend } from "@/lib/api";
 
 /**
  * NEXT_PUBLIC_API_URL must be the **backend** (e.g. Railway), not the Next.js site.
@@ -25,7 +25,7 @@ export function parseAuthApiError(res: Response, raw: unknown): string {
     if (typeof m === "string" && m.trim()) return m.trim();
   }
 
-  const base = getApiBase();
+  const base = getConfiguredApiBackend();
   const contentType = res.headers.get("content-type") ?? "";
 
   if (!base) {
@@ -49,7 +49,7 @@ export function parseAuthApiError(res: Response, raw: unknown): string {
 }
 
 export function isApiUrlMisconfigured(): boolean {
-  const base = getApiBase();
+  const base = getConfiguredApiBackend();
   if (!base) return true;
   if (isLikelyFrontendHostAsApiBase(base)) return true;
   return base.includes("your-app.railway.app") || base.includes("your-app.up.railway.app");

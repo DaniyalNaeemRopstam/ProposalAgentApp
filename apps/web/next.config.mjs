@@ -2,10 +2,22 @@
 
 const isProduction = process.env.NODE_ENV === "production";
 
+const apiBackend = (process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
+
+function isFrontendHostUrl(url) {
+  if (!url) return false;
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h.endsWith(".vercel.app") || h.endsWith(".netlify.app");
+  } catch {
+    return false;
+  }
+}
+
 let apiHostname = "";
 try {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    apiHostname = new URL(process.env.NEXT_PUBLIC_API_URL).hostname;
+  if (apiBackend) {
+    apiHostname = new URL(apiBackend).hostname;
   }
 } catch {
   /* ignore malformed URL during local tooling */
@@ -18,6 +30,15 @@ const nextConfig = {
     "@proposalagent/ui",
     "@proposalagent/api-client",
   ],
+  async rewrites() {
+    if (!apiBackend || isFrontendHostUrl(apiBackend)) return [];
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${apiBackend}/api/:path*`,
+      },
+    ];
+  },
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,

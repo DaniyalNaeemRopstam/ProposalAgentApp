@@ -15,14 +15,29 @@ function normalizeOrigin(value: string): string {
   }
 }
 
-function parseAllowlist(): string[] {
+function parseAllowlist(): { exact: string[]; patterns: string[] } {
   const raw = process.env.CORS_ORIGINS ?? process.env.CORS_ORIGIN ?? "";
-  return raw
-    .split(/[,\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map(normalizeOrigin)
-    .filter(Boolean);
+  const exact: string[] = [];
+  const patterns: string[] = [];
+  for (const entry of raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)) {
+    if (entry.includes("*")) {
+      patterns.push(entry);
+    } else {
+      const n = normalizeOrigin(entry);
+      if (n) exact.push(n);
+    }
+  }
+  return { exact, patterns };
+}
+
+function originMatchesPattern(origin: string, pattern: string): boolean {
+  const normalized = normalizeOrigin(origin);
+  const pat = pattern.trim();
+  if (!pat.includes("*")) {
+    return normalized === normalizeOrigin(pat);
+  }
+  const escaped = pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i").test(normalized);
 }
 
 /**
@@ -30,7 +45,7 @@ function parseAllowlist(): string[] {
  * (native apps, Stripe webhooks tooling, curl, non-browser callers).
  */
 export function corsAllowsOrigin(origin: string | undefined): boolean {
-  const allowed = parseAllowlist();
+  const { exact, patterns } = parseAllowlist();
   if (!origin) {
     return true;
   }
@@ -42,12 +57,13 @@ export function corsAllowsOrigin(origin: string | undefined): boolean {
     if (LOCAL_DEV.test(origin)) {
       return true;
     }
-    if (allowed.length === 0) {
+    if (exact.length === 0 && patterns.length === 0) {
       return true;
     }
   }
 
-  return allowed.includes(normalized);
+  if (exact.includes(normalized)) return true;
+  return patterns.some((p) => originMatchesPattern(origin, p));
 }
 
 /** Browser-facing CORS for HTTP JSON routes. */
@@ -57,8 +73,9 @@ export function buildCorsOptions(): CorsOptions {
     origin(origin, callback) {
       const ok = corsAllowsOrigin(origin);
       if (process.env.LOG_CORS === "1" && origin && !ok) {
+        const { exact, patterns } = parseAllowlist();
         console.warn(
-          `[cors] rejected Origin="${origin}" (normalized="${normalizeOrigin(origin)}") allowlist=${JSON.stringify(parseAllowlist())}`
+          `[cors] rejected Origin="${origin}" (normalized="${normalizeOrigin(origin)}") exact=${JSON.stringify(exact)} patterns=${JSON.stringify(patterns)}`
         );
       }
       callback(null, ok);
