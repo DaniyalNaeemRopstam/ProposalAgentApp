@@ -18,6 +18,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type {
   FollowUpMessage,
@@ -25,6 +26,7 @@ import type {
 } from "@proposalagent/shared";
 import { Button } from "../../components/ui/Button";
 import { useSequences } from "../../hooks/useSequences";
+import { useAuth } from "../../context/AuthContext";
 import { serverApi } from "../../lib/api";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
@@ -252,6 +254,8 @@ function SequenceCard({
 
 export function SequencesScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { isGuest } = useAuth();
   const qc = useQueryClient();
   const {
     data,
@@ -310,26 +314,47 @@ export function SequencesScreen() {
   const renderSend = useCallback(
     () => (
       <View style={styles.actionSend}>
+        {isGuest ? (
+          <Ionicons
+            name="lock-closed-outline"
+            size={14}
+            color={colors.textDim}
+            style={{ marginRight: 4 }}
+          />
+        ) : null}
         <Ionicons name="send" size={18} color={colors.success} />
         <Text style={styles.actionSendTxt}>Send Now</Text>
       </View>
     ),
-    []
+    [isGuest]
   );
 
   const renderStop = useCallback(
     () => (
       <View style={styles.actionStop}>
+        {isGuest ? (
+          <Ionicons
+            name="lock-closed-outline"
+            size={14}
+            color={colors.textDim}
+            style={{ marginRight: 4 }}
+          />
+        ) : null}
         <Ionicons name="stop-circle" size={18} color={colors.danger} />
         <Text style={styles.actionStopTxt}>Stop</Text>
       </View>
     ),
-    []
+    [isGuest]
   );
 
   const onSwipeOpen = useCallback(
     (sequenceId: string, canSend: boolean, canStop: boolean) =>
       (dir: "left" | "right", close: () => void) => {
+        if (isGuest) {
+          router.push("/auth/register");
+          close();
+          return;
+        }
         if (dir === "left" && canSend) {
           sendNow.mutate(sequenceId, {
             onSettled: () => close(),
@@ -340,7 +365,7 @@ export function SequencesScreen() {
           });
         } else close();
       },
-    [sendNow, stopSeq]
+    [sendNow, stopSeq, isGuest, router]
   );
 
   const renderItem = useCallback(
@@ -404,6 +429,11 @@ export function SequencesScreen() {
               </Text>{" "}
               sequence{stats.active === 1 ? "" : "s"}
             </Text>
+            {isGuest ? (
+              <Text style={styles.guestBanner}>
+                Sign up to see your real follow-up sequences.
+              </Text>
+            ) : null}
             <StatsRow
               active={stats.active}
               replies={stats.replies}
@@ -481,7 +511,18 @@ const styles = StyleSheet.create({
   header: { marginBottom: 14 },
   blurb: { fontSize: 13, color: colors.textMuted, marginBottom: 12, fontFamily: fonts.regular },
   blurbAccent: { color: colors.accent, fontFamily: fonts.semiBold },
-  statsRow: { gap: 10, paddingBottom: 4 },
+  guestBanner: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  statsRow: { flexDirection: "row", gap: 10, paddingBottom: 4 },
   statCard: {
     width: 118,
     borderRadius: 12,

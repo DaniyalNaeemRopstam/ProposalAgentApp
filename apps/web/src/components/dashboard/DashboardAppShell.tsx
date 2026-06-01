@@ -7,9 +7,14 @@ import { Icon } from "@/components/dashboard/Icon";
 import { StatCard } from "@/components/ui/StatCard";
 import { useSocket } from "@/hooks/useSocket";
 import { useAnalyticsOverview } from "@/hooks/useAnalytics";
+import { ProposalModalsHost } from "@/components/ProposalModalsHost";
 import { GuestBanner } from "@/components/GuestBanner";
+import {
+  GUEST_STICKY_CTA_DISMISS_KEY,
+  StickyGuestCTA,
+} from "@/components/StickyGuestCTA";
 import { useAuth } from "@/context/AuthContext";
-import { DEMO_ANALYTICS_OVERVIEW } from "@proposalagent/shared";
+import { SAMPLE_ANALYTICS } from "@proposalagent/shared";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
 
@@ -88,8 +93,14 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
   const [statPulse, setStatPulse] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [guestStickyDismissed, setGuestStickyDismissed] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setGuestStickyDismissed(window.localStorage.getItem(GUEST_STICKY_CTA_DISMISS_KEY) === "1");
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -151,7 +162,8 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [statPulse]);
 
-  const stats = isGuest ? DEMO_ANALYTICS_OVERVIEW : overview;
+  const stats = isGuest ? SAMPLE_ANALYTICS.overview : overview;
+  const showGuestStickyBar = isGuest && !guestStickyDismissed;
   const sent = stats?.proposalsSent ?? 0;
   const replyRate = stats?.replyRate ?? 0;
   const winRate = stats?.winRate ?? 0;
@@ -434,9 +446,26 @@ export function DashboardAppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 pb-6 pt-4 sm:px-6 sm:pb-10 sm:pt-6">
+        <main
+          className={cn(
+            "flex-1 overflow-x-hidden overflow-y-auto px-4 pb-6 pt-4 sm:px-6 sm:pb-10 sm:pt-6",
+            showGuestStickyBar && "lg:!pb-[calc(2.5rem+52px)]"
+          )}
+        >
           <div className="mx-auto max-w-[900px]">{children}</div>
         </main>
+
+        <StickyGuestCTA
+          visible={showGuestStickyBar}
+          onDismiss={() => {
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(GUEST_STICKY_CTA_DISMISS_KEY, "1");
+            }
+            setGuestStickyDismissed(true);
+          }}
+        />
+
+        <ProposalModalsHost />
       </div>
     </div>
   );

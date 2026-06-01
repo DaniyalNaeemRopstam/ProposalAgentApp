@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Btn } from "@/components/ui/Btn";
 import { ScoreRing } from "@/components/ui/ScoreRing";
@@ -11,7 +12,8 @@ import toast from "react-hot-toast";
 import { notifyHttpError, notifyNetworkError } from "@/lib/apiErrors";
 import { useAuth } from "@/context/AuthContext";
 import { findDemoJobById } from "@proposalagent/shared";
-import { useGuestAiGate } from "@/hooks/useGuestAiGate";
+import { FREE_PROPOSAL_LIMIT } from "@/lib/proposalLimits";
+import { useAppStore } from "@/store/appStore";
 
 /** Lean job payload from GET /api/jobs/:id */
 type ApiJobRecord = Record<string, unknown> & {
@@ -86,8 +88,8 @@ function buildGenerateBody(job: ApiJobRecord, jobIdMongo: string) {
 export function ProposalTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isGuest } = useAuth();
-  const { requireAuthForAi } = useGuestAiGate();
+  const qc = useQueryClient();
+  const { isGuest, user, isAuthenticated, isLoading: authLoading } = useAuth();
   const jobIdFromQuery = searchParams.get("jobId");
 
   const [job, setJob] = useState<ApiJobRecord | null>(null);
@@ -186,8 +188,6 @@ export function ProposalTab() {
 
   const handleGenerateInternal = useCallback(
     async (sourceJob: ApiJobRecord) => {
-      if (!requireAuthForAi()) return;
-
       const jid = normalizeJobId(sourceJob._id) || mongoJobId;
       if (!jid) {
         setGenerateError("Missing job reference.");
@@ -281,6 +281,7 @@ export function ProposalTab() {
           }
           buffer = flushSseBlocks(buffer + decoder.decode(value, { stream: true }));
         }
+        await qc.invalidateQueries({ queryKey: ["auth"] });
         toast.success("Proposal generated ✓");
       } catch (err) {
         if (
@@ -295,8 +296,35 @@ export function ProposalTab() {
         setGenStartedAt(null);
       }
     },
-    [mongoJobId]
+    [mongoJobId, qc]
   );
+
+  const proposalsUsed = user?.stats?.proposalsSent ?? 0;
+  const freeAtLimit =
+    !isGuest && user?.plan === "free" && proposalsUsed >= FREE_PROPOSAL_LIMIT;
+
+  const handleGenerateClick = useCallback(() => {
+    if (!job) return;
+    if (isGuest) {
+      useAppStore.getState().setShowSignupModal(true);
+      return;
+    }
+    if (user?.plan === "free" && (user.stats?.proposalsSent ?? 0) >= FREE_PROPOSAL_LIMIT) {
+      useAppStore.getState().setShowUpgradeModal(true);
+      return;
+    }
+    void handleGenerateInternal(job);
+  }, [job, isGuest, user, handleGenerateInternal]);
+
+  /** After global signup (no pending job from Jobs), Proposal Writer runs generate from this tab. */
+  useEffect(() => {
+    const onSignup = (): void => {
+      if (!job || !jobIdFromQuery?.trim()) return;
+      void handleGenerateInternal(job);
+    };
+    window.addEventListener("pa-registration-success", onSignup);
+    return () => window.removeEventListener("pa-registration-success", onSignup);
+  }, [job, jobIdFromQuery, handleGenerateInternal]);
 
   /** Tick while generating so elapsed time crosses the ~2s checklist boundary. */
   useEffect(() => {
@@ -313,12 +341,26 @@ export function ProposalTab() {
 
   useEffect(() => {
     if (!jobIdFromQuery || !job || loadError) return;
+    if (isGuest) return;
+    if (authLoading || (isAuthenticated && !user)) return;
+    if (user?.plan === "free" && (user.stats?.proposalsSent ?? 0) >= FREE_PROPOSAL_LIMIT) return;
+
     const idKey = mongoJobId;
     const key = `${jobIdFromQuery}:${idKey}`;
     if (autoRanForKey.current === key) return;
     autoRanForKey.current = key;
     void handleGenerateInternal(job);
-  }, [job, jobIdFromQuery, loadError, mongoJobId, handleGenerateInternal]);
+  }, [
+    job,
+    jobIdFromQuery,
+    loadError,
+    mongoJobId,
+    handleGenerateInternal,
+    isGuest,
+    authLoading,
+    isAuthenticated,
+    user,
+  ]);
 
   const copyProposal = () => {
     void navigator.clipboard.writeText(proposal).then(() => {
@@ -491,39 +533,66 @@ export function ProposalTab() {
         </div>
       ) : (
         <div>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[13px] text-textMuted">
-              AI-generated proposal · Edit before sending
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <Btn variant="ghost" onClick={() => void handleGenerateInternal(job)}>
-                <Icon name="refresh" size={13} /> Regenerate
-              </Btn>
-              <Btn
-                variant="ghost"
-                disabled={markSentLoading || !proposalMongoId}
-                onClick={() => void markSent()}
-              >
-                {markSentLoading ? (
-                  "Marking..."
-                ) : (
-                  <>
-                    <Icon name="send" size={13} /> Mark as Sent
-                  </>
-                )}
-              </Btn>
-              <Btn variant={copied ? "success" : "primary"} onClick={copyProposal}>
-                {copied ? (
-                  <>
-                    <Icon name="check" size={13} /> Copied!
-                  </>
-                ) : (
-                  <>
-                    <Icon name="copy" size={13} /> Copy proposal
-                  </>
-                )}
-              </Btn>
+          <div className="mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[13px] text-textMuted">
+                AI-generated proposal · Edit before sending
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Btn
+                  variant="ghost"
+                  onClick={() => handleGenerateClick()}
+                  disabled={generating}
+                >
+                  <Icon name="refresh" size={13} />
+                  {freeAtLimit
+                    ? "Upgrade to generate"
+                    : proposal.trim().length === 0
+                      ? "Generate AI Proposal"
+                      : "Regenerate"}
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  disabled={markSentLoading || !proposalMongoId}
+                  onClick={() => void markSent()}
+                >
+                  {markSentLoading ? (
+                    "Marking..."
+                  ) : (
+                    <>
+                      <Icon name="send" size={13} /> Mark as Sent
+                    </>
+                  )}
+                </Btn>
+                <Btn variant={copied ? "success" : "primary"} onClick={copyProposal}>
+                  {copied ? (
+                    <>
+                      <Icon name="check" size={13} /> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="copy" size={13} /> Copy proposal
+                    </>
+                  )}
+                </Btn>
+              </div>
             </div>
+            {!isGuest && user?.plan === "free" ? (
+              <div className="mt-3 w-full">
+                <p className="text-[12px] text-textMuted">
+                  {Math.min(proposalsUsed, FREE_PROPOSAL_LIMIT)} of {FREE_PROPOSAL_LIMIT} free
+                  proposals used
+                </p>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full rounded-full bg-accent transition-all"
+                    style={{
+                      width: `${Math.min(100, (Math.min(proposalsUsed, FREE_PROPOSAL_LIMIT) / FREE_PROPOSAL_LIMIT) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
           <textarea
             ref={proposalRef}

@@ -8,6 +8,7 @@ import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
 import {
   type BillingPlan,
+  FREE_PROPOSAL_LIFETIME_LIMIT,
   PLAN_CONFIGS,
   STRIPE_PRICE_IDS,
   getStripe,
@@ -78,8 +79,8 @@ export async function createCheckout(req: Request, res: Response): Promise<void>
     mode: "subscription",
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${base}/dashboard?billing=success&plan=${plan}`,
-    cancel_url: `${base}/dashboard?billing=cancelled`,
+    success_url: `${base}/dashboard/proposals?billing=success&plan=${plan}`,
+    cancel_url: `${base}/dashboard/proposals?billing=cancelled`,
     subscription_data: {
       metadata: { userId: req.user!._id.toString(), plan },
     },
@@ -224,12 +225,18 @@ export async function billingStatus(req: Request, res: Response): Promise<void> 
   const config = PLAN_CONFIGS[plan];
   const limit = config.proposalsPerMonth; // null = unlimited
 
-  // Count proposals sent this calendar month
+  // Free: lifetime count from profile; paid unlimited: still expose monthly non-draft count for dashboards
+  const proposalsUsedLifetime = user.stats?.proposalsSent ?? 0;
+
   const proposalsUsedThisMonth = await Proposal.countDocuments({
     userId: req.user!._id,
     status: { $nin: ["draft"] },
     createdAt: { $gte: monthStart() },
   });
+
+  const isFree = plan === "free";
+  const proposalsLimitForUi = isFree ? FREE_PROPOSAL_LIFETIME_LIMIT : limit;
+  const proposalsUsedForUi = isFree ? proposalsUsedLifetime : proposalsUsedThisMonth;
 
   res.json(
     ok({
@@ -241,8 +248,11 @@ export async function billingStatus(req: Request, res: Response): Promise<void> 
         platforms: config.platforms,
       },
       proposalsUsedThisMonth,
-      proposalsLimit: limit,
-      unlimited: limit === null,
+      proposalsUsedLifetime,
+      proposalsUsedForUi,
+      proposalsLimit: proposalsLimitForUi,
+      proposalsLimitIsLifetime: isFree,
+      unlimited: !isFree && limit === null,
       nextReset: nextMonthStart().toISOString(),
       hasStripeCustomer: Boolean(user.stripeCustomerId),
     })

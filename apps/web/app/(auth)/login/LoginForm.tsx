@@ -97,9 +97,9 @@ export function LoginForm() {
               color: C.warn,
             }}
           >
-            API URL is not configured. Set NEXT_PUBLIC_API_URL in Vercel to your Railway URL
-            (e.g. https://proposalagentapp-production.up.railway.app) and redeploy. Current:{" "}
-            {getApiBase() || "missing"}
+            API URL must be your Railway backend, not this Vercel site. Set NEXT_PUBLIC_API_URL
+            (e.g. https://proposalagentapp-production.up.railway.app) in Vercel → Environment
+            Variables and redeploy. Current: {getApiBase() || "missing"}
           </div>
         ) : null}
 

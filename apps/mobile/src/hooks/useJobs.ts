@@ -37,6 +37,8 @@ export interface UseJobsResult {
   refetch: () => void;
   isRefetching: boolean;
   lastSync: Date | null;
+  /** Guest preview mode — `SAMPLE_JOBS` */
+  isDemo: boolean;
 }
 
 const DEFAULT_MIN_SCORE = 60;
@@ -78,6 +80,7 @@ export function useJobs(options?: UseJobsOptions): UseJobsResult {
     refetch: () => void query.refetch(),
     isRefetching: query.isRefetching,
     lastSync,
+    isDemo: Boolean(isGuest),
   };
 }
 

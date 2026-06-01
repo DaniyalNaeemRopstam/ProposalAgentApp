@@ -16,7 +16,7 @@ import { notifyHttpError } from "@/lib/apiErrors";
 import toast from "react-hot-toast";
 import type { Job } from "@proposalagent/shared";
 import { useAuth } from "@/context/AuthContext";
-import { useGuestAiGate } from "@/hooks/useGuestAiGate";
+import { useAppStore } from "@/store/appStore";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
 
@@ -41,7 +41,7 @@ function jobKey(job: Job, i: number): string {
 function DemoBadge() {
   return (
     <span
-      title="Sign up to see real matched jobs for your profile"
+      title="Real jobs matched to your profile after signup"
       className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-textDim"
       style={{ background: C.surfaceHover }}
     >
@@ -54,7 +54,6 @@ export default function JobsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isGuest } = useAuth();
-  const { requireAuthForAi } = useGuestAiGate();
   const [sourceFilter, setSourceFilter] = useState<JobsSourceFilter>("all");
   const [savedFilter, setSavedFilter] = useState<SavedFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -118,8 +117,21 @@ export default function JobsPage() {
   const [customJob, setCustomJob] = useState("");
   const [showCustom, setShowCustom] = useState(false);
 
+  const handleResearchClient = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isGuest) {
+      useAppStore.getState().setShowSignupModal(true);
+      return;
+    }
+    toast("Client research opens from your connected integrations after signup.");
+  };
+
   const handleGenerateProposal = (job: Job) => {
-    if (!requireAuthForAi()) return;
+    if (isGuest) {
+      useAppStore.getState().setPendingJobForProposal(job);
+      useAppStore.getState().setShowSignupModal(true);
+      return;
+    }
     const jobId = (job as Job & { _id?: string; id?: string })._id || (job as Job & { id?: string }).id || String(Math.random());
     router.push(`/dashboard/proposals?jobId=${encodeURIComponent(String(jobId))}`);
   };
@@ -441,7 +453,7 @@ export default function JobsPage() {
                       <Btn onClick={() => handleGenerateProposal(job)}>
                         <Icon name="sparkle" size={13} /> Generate AI proposal
                       </Btn>
-                      <Btn variant="ghost">
+                      <Btn type="button" onClick={(e) => handleResearchClient(e)} variant="ghost">
                         <Icon name="linkedin" size={13} /> Research client
                       </Btn>
                     </div>

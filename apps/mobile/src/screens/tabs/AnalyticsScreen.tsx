@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Button } from "../../components/ui/Button";
 import {
   type AIInsight,
   type MonthlyData,
@@ -20,7 +22,7 @@ import {
   useAnalyticsPlatforms,
   useRefreshAllAnalytics,
 } from "../../hooks/useAnalytics";
-import { Button } from "../../components/ui/Button";
+import { useAuth } from "../../context/AuthContext";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
 
@@ -126,6 +128,8 @@ function InsightCard({ insight }: { insight: AIInsight }) {
 
 export function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { isGuest } = useAuth();
   const { width: winW } = useWindowDimensions();
   const horizontalPad = 16;
   const innerCardPad = 16;
@@ -329,20 +333,32 @@ export function AnalyticsScreen() {
       </View>
 
       <Text style={styles.sectionTitle}>AI insights</Text>
-      <FlatList
-        data={insights.data ?? []}
-        scrollEnabled={false}
-        nestedScrollEnabled
-        keyExtractor={(item, index) => `${index}-${item.text.slice(0, 24)}`}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        style={styles.insightsList}
-        renderItem={({ item }) => <InsightCard insight={item} />}
-        ListEmptyComponent={
-          !insights.isLoading ? (
-            <Text style={styles.muted}>No insights yet.</Text>
-          ) : null
-        }
-      />
+      <View style={styles.insightsWrap}>
+        <FlatList
+          data={insights.data ?? []}
+          scrollEnabled={false}
+          nestedScrollEnabled
+          keyExtractor={(item, index) => `${index}-${item.text.slice(0, 24)}`}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          style={[styles.insightsList, isGuest && { opacity: 0.38 }]}
+          renderItem={({ item }) => <InsightCard insight={item} />}
+          ListEmptyComponent={
+            !insights.isLoading ? (
+              <Text style={styles.muted}>No insights yet.</Text>
+            ) : null
+          }
+        />
+        {isGuest ? (
+          <View style={styles.insightsOverlay}>
+            <Text style={styles.insightsOverlayTitle}>Unlock AI coaching insights</Text>
+            <Button
+              title="Sign up free to see your insights"
+              variant="primary"
+              onPress={() => router.push("/auth/register")}
+            />
+          </View>
+        ) : null}
+      </View>
 
       <Text style={styles.lastUpdated}>Last updated {lastLbl}</Text>
     </ScrollView>
@@ -516,6 +532,27 @@ const styles = StyleSheet.create({
   },
   insightsList: {
     marginBottom: 8,
+  },
+  insightsWrap: {
+    position: "relative",
+    marginBottom: 8,
+    minHeight: 120,
+  },
+  insightsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(7, 9, 15, 0.82)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    gap: 12,
+    borderRadius: 12,
+  },
+  insightsOverlayTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: 4,
   },
   insightCard: {
     backgroundColor: colors.surface,

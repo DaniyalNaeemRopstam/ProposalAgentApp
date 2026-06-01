@@ -19,9 +19,11 @@ import {
   View,
 } from "react-native";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { serverApi } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 import {
   type PipelineDealRow,
   type PipelineStageId,
@@ -72,6 +74,8 @@ function formatMoney(n: number): string {
 
 export function PipelineScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { isGuest } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading, isError, error, refetch, isRefetching } = usePipeline();
 
@@ -174,6 +178,10 @@ export function PipelineScreen() {
 
   const advance = useCallback(
     (deal: PipelineDealRow) => {
+      if (isGuest) {
+        router.push("/auth/register");
+        return;
+      }
       const next = nextStageFor(deal.stage);
       if (!next) return;
 
@@ -211,17 +219,25 @@ export function PipelineScreen() {
 
       run();
     },
-    [moveStage]
+    [moveStage, isGuest, router]
   );
 
   const renderAdvance = useCallback(
     () => (
       <View style={styles.swipeAdv}>
+        {isGuest ? (
+          <Ionicons
+            name="lock-closed-outline"
+            size={14}
+            color={colors.textDim}
+            style={{ marginRight: 4 }}
+          />
+        ) : null}
         <Ionicons name="arrow-forward" size={18} color={colors.success} />
         <Text style={styles.swipeAdvTxt}>Next</Text>
       </View>
     ),
-    []
+    [isGuest]
   );
 
   const renderDeal = useCallback(
@@ -337,7 +353,7 @@ export function PipelineScreen() {
           styles.fab,
           { bottom: insets.bottom + 16, right: 16 },
         ]}
-        onPress={() => setAddOpen(true)}
+        onPress={() => (isGuest ? router.push("/auth/register") : setAddOpen(true))}
       >
         <Ionicons name="add" size={28} color={colors.text} />
       </Pressable>

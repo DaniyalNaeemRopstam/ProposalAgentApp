@@ -25,6 +25,8 @@ import { apiUrl, authHeaders } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 import { PipelineSkeleton } from "@/components/skeletons/PipelineSkeleton";
 import { cn } from "@/lib/cn";
+import { useAuth } from "@/context/AuthContext";
+import { useAppStore } from "@/store/appStore";
 
 /** Column accents — MVP palette */
 const COLUMN_ACCENT: Record<PipelineStageId, string> = {
@@ -215,6 +217,8 @@ const emptyForm = (): CreateForm => ({
 
 export function PipelineTab() {
   const queryClient = useQueryClient();
+  const { isGuest } = useAuth();
+  const openSignup = () => useAppStore.getState().setShowSignupModal(true);
   const { data, isLoading, error } = usePipeline();
   const [activeDeal, setActiveDeal] = useState<PipelineDealRow | null>(null);
   const [moveErr, setMoveErr] = useState<string | null>(null);
@@ -336,6 +340,10 @@ export function PipelineTab() {
 
   const handleDragEnd = (ev: DragEndEvent) => {
     setActiveDeal(null);
+    if (isGuest) {
+      openSignup();
+      return;
+    }
     const { active, over } = ev;
 
     const cached = queryClient.getQueryData<{
@@ -436,7 +444,7 @@ export function PipelineTab() {
             type="button"
             className="shrink-0 text-xs"
             leftIcon={<Icon name="trending" size={13} />}
-            onClick={() => setModalOpen(true)}
+            onClick={() => (isGuest ? openSignup() : setModalOpen(true))}
           >
             + Add deal
           </Btn>

@@ -6,9 +6,13 @@ import { useSequences } from "@/hooks/useSequences";
 import { Btn } from "@/components/ui/Btn";
 import { Icon } from "@/components/dashboard/Icon";
 import { SequenceSkeleton } from "@/components/skeletons/SequenceSkeleton";
-import { cn } from "@/lib/cn";
+import { useAuth } from "@/context/AuthContext";
+import { useAppStore } from "@/store/appStore";
+import { C } from "@/styles/theme";
 import { apiUrl, authHeaders } from "@/lib/api";
 import type { FollowUpSequence } from "@proposalagent/shared";
+import toast from "react-hot-toast";
+import { cn } from "@/lib/cn";
 
 function getStatusColor(sequence: FollowUpSequence): string {
   if (sequence.status === "stopped") return "success";
@@ -74,6 +78,8 @@ const followupTone: Record<string, string> = {
 
 export function SequencesTab() {
   const queryClient = useQueryClient();
+  const { isGuest } = useAuth();
+  const openSignup = () => useAppStore.getState().setShowSignupModal(true);
   const { data: sequences = [], isLoading, error } = useSequences();
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
@@ -187,6 +193,14 @@ export function SequencesTab() {
 
   return (
     <div className="animate-slideUp">
+      {isGuest ? (
+        <div
+          className="mb-4 rounded-xl border px-4 py-3 text-[13px] text-textMuted"
+          style={{ borderColor: C.accent, background: C.accentDim }}
+        >
+          Sign up to see your real follow-up sequences
+        </div>
+      ) : null}
       <p className="mb-4 text-[13px] text-textMuted">
         Automated follow-up sequences for{" "}
         <span className="text-accent">{sequences.length} active proposal{sequences.length === 1 ? "" : "s"}</span>
@@ -235,7 +249,17 @@ export function SequencesTab() {
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Btn variant="ghost" className="text-xs">
+              <Btn
+                variant="ghost"
+                className="text-xs"
+                onClick={() => {
+                  if (isGuest) {
+                    openSignup();
+                    return;
+                  }
+                  toast("Full preview is available in your workspace.");
+                }}
+              >
                 <Icon name="mail" size={12} /> Preview follow-up
               </Btn>
               {canSendNow && (
@@ -243,7 +267,13 @@ export function SequencesTab() {
                   variant="ghost"
                   className="text-xs"
                   disabled={sendNowMutation.isPending}
-                  onClick={() => sendNowMutation.mutate(sequence._id)}
+                  onClick={() => {
+                    if (isGuest) {
+                      openSignup();
+                      return;
+                    }
+                    sendNowMutation.mutate(sequence._id);
+                  }}
                 >
                   <Icon name="send" size={12} />
                   {sendNowMutation.isPending ? "Sending..." : "Send now"}
@@ -254,7 +284,13 @@ export function SequencesTab() {
                   variant="ghost"
                   className="text-xs"
                   disabled={stopMutation.isPending}
-                  onClick={() => stopMutation.mutate(sequence._id)}
+                  onClick={() => {
+                    if (isGuest) {
+                      openSignup();
+                      return;
+                    }
+                    stopMutation.mutate(sequence._id);
+                  }}
                 >
                   <Icon name="target" size={12} />
                   {stopMutation.isPending ? "Stopping..." : "Stop"}

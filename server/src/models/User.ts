@@ -48,6 +48,10 @@ const userSchema = new Schema(
     projectLibrary: { type: [projectReferenceSchema], default: [] },
     stats: { type: userStatsSchema, default: () => ({}) },
     insightsCache: { type: insightsCacheSchema, default: null },
+    /** Increments once per AI proposal persisted (every plan). Gates free-tier limit in proposalGuard. */
+    totalProposalsGenerated: { type: Number, default: 0 },
+    /** Template 5 (day-3 cron) dedupe marker */
+    reengagementEmailSentAt: { type: Date },
     /** Expo push token (ExponentPushToken[…]) — mobile only */
     pushToken: { type: String, trim: true },
   },

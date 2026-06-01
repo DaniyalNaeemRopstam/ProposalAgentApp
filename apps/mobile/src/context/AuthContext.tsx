@@ -6,6 +6,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { DeviceEventEmitter } from "react-native";
+import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +34,14 @@ export interface AuthUser {
   avatar?: string;
   voiceProfile?: string;
   projectLibrary: ProjectReference[];
+  stats?: {
+    proposalsSent?: number;
+    repliesReceived?: number;
+    projectsWon?: number;
+    revenueWon?: number;
+    winRate?: number;
+    replyRate?: number;
+  };
 }
 
 type AuthContextValue = {
@@ -135,7 +145,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onSuccess: async (t) => {
       setToken(t);
       await qc.invalidateQueries({ queryKey: ["auth"] });
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["sequences"] });
+      void qc.invalidateQueries({ queryKey: ["pipeline"] });
+      void qc.invalidateQueries({ queryKey: ["analytics"] });
       await syncStoredPushTokenToServer();
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        //
+      }
+      DeviceEventEmitter.emit("pa-welcome-toast", "Welcome! Generating your profile... ⚡");
     },
   });
 
@@ -156,7 +176,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onSuccess: async (t) => {
       setToken(t);
       await qc.invalidateQueries({ queryKey: ["auth"] });
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["sequences"] });
+      void qc.invalidateQueries({ queryKey: ["pipeline"] });
+      void qc.invalidateQueries({ queryKey: ["analytics"] });
       await syncStoredPushTokenToServer();
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        //
+      }
+      DeviceEventEmitter.emit("pa-welcome-toast", "Welcome! Generating your profile... ⚡");
     },
   });
 

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -223,7 +223,13 @@ function DetailBottomSheet({
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isGuest, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && isGuest) {
+      router.replace("/auth/register");
+    }
+  }, [isGuest, isLoading, router]);
   const [selectedPlatform, setSelectedPlatform] = useState<(typeof PLATFORMS)[0] | null>(null);
   
   const { data: integrationStatus } = useIntegrationsStatus();
@@ -264,6 +270,22 @@ export default function SettingsScreen() {
       ]
     );
   };
+
+  if (isLoading || isGuest) {
+    return (
+      <View
+        style={[
+          styles.screen,
+          { paddingTop: insets.top + 40, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
+        ]}
+      >
+        <ActivityIndicator color={colors.accent} size="large" />
+        <Text style={{ marginTop: 16, textAlign: "center", color: colors.textMuted, fontFamily: fonts.regular }}>
+          Create your free account to access settings
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView

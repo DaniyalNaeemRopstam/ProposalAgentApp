@@ -6,6 +6,7 @@ import { fetchWellfoundJobs } from "../services/wellfoundService";
 import { fetchHackerNewsJobs } from "../services/hackerNewsService";
 import { fetchUpworkJobs } from "../services/upworkService";
 import { batchScoreJobs } from "../services/scoringService";
+import { runDayThreeReengagementBatch } from "../services/dayThreeReengagementJob";
 import { sendPushNotification } from "../utils/notifications";
 import { emitNewJobMatch } from "../realtime/emitters";
 import type { AggregatedJobData } from "../services/aggregationTypes";
@@ -37,6 +38,25 @@ export function startJobAggregator(): void {
   }, 10000);
 
   console.info("[aggregator] Job aggregator started — runs every 15 minutes");
+
+  // Day-3 re-engagement (Template 5): free users, registered 3 calendar days ago (UTC), zero proposals generated
+  cron.schedule(
+    "0 9 * * *",
+    async () => {
+      try {
+        const { scanned, sent } = await runDayThreeReengagementBatch();
+        if (sent > 0 || scanned > 0) {
+          console.log(
+            `[onboarding-email] day-3 re-engagement: scanned=${scanned} sent=${sent}`
+          );
+        }
+      } catch (err) {
+        console.error("[onboarding-email] day-3 cron failed:", err);
+      }
+    },
+    { timezone: "UTC" }
+  );
+  console.info("[aggregator] Day-3 re-engagement email cron — daily 09:00 UTC");
 }
 
 export async function runAggregation(): Promise<AggregationStats> {

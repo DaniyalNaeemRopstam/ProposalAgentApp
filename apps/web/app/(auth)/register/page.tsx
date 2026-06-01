@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { getApiBase } from "@/lib/api";
+import { isApiUrlMisconfigured } from "@/lib/authApiErrors";
 import { C } from "@/styles/theme";
 
 const schema = z
@@ -38,6 +40,24 @@ function passwordStrength(pw: string): Strength {
   return "weak";
 }
 
+function SettingsRedirectNote() {
+  const searchParams = useSearchParams();
+  const fromSettings = searchParams.get("reason") === "settings";
+  if (!fromSettings) return null;
+  return (
+    <div
+      className="mb-6 rounded-lg border px-4 py-3 text-center text-sm"
+      style={{
+        borderColor: `${C.accent}55`,
+        background: C.accentDim,
+        color: C.textMuted,
+      }}
+    >
+      Create your free account to access settings.
+    </div>
+  );
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register, isAuthenticated, isLoading: authBoot } = useAuth();
@@ -53,6 +73,8 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const strength = useMemo(() => passwordStrength(password), [password]);
+
+  const apiMisconfigured = isApiUrlMisconfigured();
 
   if (authBoot) {
     return (
@@ -124,10 +146,29 @@ export default function RegisterPage() {
         </p>
       </div>
 
+      <Suspense fallback={null}>
+        <SettingsRedirectNote />
+      </Suspense>
+
       <form
         onSubmit={onSubmit}
         className="rounded-xl border border-border bg-surface p-4 sm:p-6"
       >
+        {apiMisconfigured ? (
+          <div
+            className="mb-4 rounded-lg border px-3 py-2 text-sm"
+            style={{
+              borderColor: `${C.warn}55`,
+              background: C.warnDim,
+              color: C.warn,
+            }}
+          >
+            API URL must be your Railway backend, not this Vercel site. Set NEXT_PUBLIC_API_URL
+            (e.g. https://proposalagentapp-production.up.railway.app) in Vercel → Environment
+            Variables and redeploy. Current: {getApiBase() || "missing"}
+          </div>
+        ) : null}
+
         {formError ? (
           <div
             className="mb-4 rounded-lg border px-3 py-2 text-sm"

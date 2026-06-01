@@ -12,6 +12,7 @@ import {
   voiceProfileBodySchema,
 } from "../schemas/authSchemas";
 import { backfillAggregatedJobsForUser } from "../services/jobBackfillService";
+import { scheduleWelcomeEmailAfterRegister } from "../services/onboardingEmailTriggers";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
 import type { z } from "zod";
@@ -72,6 +73,8 @@ export async function register(req: Request, res: Response): Promise<void> {
     void backfillAggregatedJobsForUser(user._id).catch((err) => {
       console.error("[auth] aggregated job backfill failed:", err);
     });
+
+    scheduleWelcomeEmailAfterRegister(user.email, user.name);
 
     const token = signAuthToken(user.id, user.email);
     res.status(201).json(

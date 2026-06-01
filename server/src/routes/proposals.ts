@@ -4,12 +4,13 @@ import {
   generate,
   getProposal,
   listProposals,
+  proposalUsage,
   updateContent,
   updateStatus,
 } from "../controllers/proposalsController";
 import { markProposalSent } from "../controllers/sequencesController";
 import { requireAuth } from "../middleware/auth";
-import { planGuard } from "../middleware/planGuard";
+import { proposalGuard } from "../middleware/planGuard";
 import { aiRateLimiter } from "../middleware/rateLimiter";
 import { validate } from "../middleware/validate";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -32,10 +33,13 @@ proposalsRouter.get(
   asyncHandler(listProposals)
 );
 
-// Generate a new proposal — plan quota check then hourly AI rate limit
+// Current usage snapshot (lifetime free cap vs unlimited paid)
+proposalsRouter.get("/usage", asyncHandler(proposalUsage));
+
+// Generate a new proposal — lifetime free quota check then hourly AI rate limit
 proposalsRouter.post(
   "/generate",
-  asyncHandler(planGuard),
+  asyncHandler(proposalGuard),
   aiRateLimiter,
   validate(generateProposalBodySchema),
   asyncHandler(generate)

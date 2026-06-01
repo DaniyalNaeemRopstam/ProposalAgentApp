@@ -14,6 +14,8 @@ import {
   type AIInsight,
   type PlatformData,
 } from "@/hooks/useAnalytics";
+import { useAuth } from "@/context/AuthContext";
+import { useAppStore } from "@/store/appStore";
 import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
 
 // MVP color mapping for platforms
@@ -187,6 +189,8 @@ function InsightsSection({
 }
 
 export function AnalyticsTab() {
+  const { isGuest } = useAuth();
+  const openSignup = () => useAppStore.getState().setShowSignupModal(true);
   const { data: overview, isLoading: overviewLoading, error: overviewError } = useAnalyticsOverview();
   const { data: monthly, isLoading: monthlyLoading, error: monthlyError } = useAnalyticsMonthly();
   const { data: platforms, isLoading: platformsLoading, error: platformsError } = useAnalyticsPlatforms();
@@ -217,6 +221,7 @@ export function AnalyticsTab() {
   }
 
   const handleRefreshInsights = () => {
+    if (isGuest) return;
     refreshInsightsMutation.mutate();
   };
 
@@ -238,12 +243,41 @@ export function AnalyticsTab() {
         </div>
       </div>
       
-      <div className="card" style={{ padding: 20 }}>
-        <InsightsSection
-          insights={insights || []}
-          isRefreshing={refreshInsightsMutation.isPending}
-          onRefresh={handleRefreshInsights}
-        />
+      <div className="card relative overflow-hidden" style={{ padding: 20 }}>
+        {isGuest ? (
+          <>
+            <div className="pointer-events-none blur-sm select-none opacity-70">
+              <InsightsSection
+                insights={insights || []}
+                isRefreshing={refreshInsightsMutation.isPending}
+                onRefresh={handleRefreshInsights}
+              />
+            </div>
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
+              style={{
+                background: "rgba(7, 9, 15, 0.78)",
+                backdropFilter: "blur(6px)",
+              }}
+            >
+              <p className="text-sm font-medium text-text">Unlock AI coaching insights</p>
+              <Btn
+                variant="primary"
+                className="text-xs"
+                type="button"
+                onClick={() => openSignup()}
+              >
+                Sign up free to see your insights
+              </Btn>
+            </div>
+          </>
+        ) : (
+          <InsightsSection
+            insights={insights || []}
+            isRefreshing={refreshInsightsMutation.isPending}
+            onRefresh={handleRefreshInsights}
+          />
+        )}
       </div>
     </div>
   );

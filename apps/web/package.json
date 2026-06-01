@@ -23,7 +23,8 @@
     "react-native": "^0.76.3",
     "react-native-web": "^0.19.13",
     "socket.io-client": "^4.8.3",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

@@ -14,6 +14,22 @@ import type {
 } from "../schemas/proposalSchemas";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
+import { FREE_PROPOSAL_LIFETIME_LIMIT, type BillingPlan } from "../utils/stripe";
+import { scheduleOnboardingEmailsAfterProposal } from "../services/onboardingEmailTriggers";
+
+function generateResponseMeta(req: Request): {
+  proposalsRemaining: number | null;
+  plan: BillingPlan;
+} {
+  const plan = (req.proposalBillingPlan ?? "free") as BillingPlan;
+
+  let remaining: number | null = req.proposalsRemaining ?? null;
+  if (remaining !== null) {
+    remaining = Math.max(0, remaining - 1);
+  }
+
+  return { proposalsRemaining: remaining, plan };
+}
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,8 +79,25 @@ async function finalizeGeneratedProposal(opts: {
     status: "draft",
   });
 
-  await User.updateOne({ _id: req.user!._id }, { $inc: { "stats.proposalsSent": 1 } });
+  const updatedUser = await User.findOneAndUpdate(
+    { _id: req.user!._id },
+    {
+      $inc: {
+        "stats.proposalsSent": 1,
+        totalProposalsGenerated: 1,
+      },
+    },
+    {
+      new: true,
+      select: "plan email name totalProposalsGenerated",
+    }
+  ).lean();
+
   await emitStatsUpdated(req.user!._id.toString());
+
+  if (updatedUser && typeof updatedUser.totalProposalsGenerated === "number") {
+    scheduleOnboardingEmailsAfterProposal(updatedUser, updatedUser.totalProposalsGenerated);
+  }
 
   return proposal;
 }
@@ -106,14 +139,15 @@ async function generateJson(req: Request, res: Response): Promise<void> {
 
   const proposal = await finalizeGeneratedProposal({ req, body, result });
 
-  res.status(201).json(
-    ok({
-      proposal: proposal.toObject(),
-      wordCount: result.wordCount,
-      replyProbability: result.replyProbability,
-      proposalScore: result.proposalScore,
-    })
-  );
+  const data = {
+    proposal: proposal.toObject(),
+    wordCount: result.wordCount,
+    replyProbability: result.replyProbability,
+    proposalScore: result.proposalScore,
+  };
+
+  const meta = generateResponseMeta(req);
+  res.status(201).json({ success: true, data, meta });
 }
 
 async function generateSse(req: Request, res: Response): Promise<void> {
@@ -162,6 +196,7 @@ async function generateSse(req: Request, res: Response): Promise<void> {
       score: result.proposalScore,
       replyProbability: result.replyProbability,
       wordCount: result.wordCount,
+      meta: generateResponseMeta(req),
     });
     res.end();
   } catch (err: unknown) {
@@ -175,6 +210,55 @@ async function generateSse(req: Request, res: Response): Promise<void> {
     writeSse({ error: msg });
     res.end();
   }
+}
+
+// ─── GET /api/proposals/usage ────────────────────────────────────────────────
+
+export async function proposalUsage(req: Request, res: Response): Promise<void> {
+  type LeanU = {
+    plan?: BillingPlan | string;
+    totalProposalsGenerated?: number;
+  };
+
+  const u = (await User.findById(req.user!._id)
+    .select("plan totalProposalsGenerated")
+    .lean()) as LeanU | null;
+
+  if (!u) throw ApiError.unauthorized("Account not found.");
+
+  const plan = (u.plan ?? "free") as BillingPlan;
+
+  let used =
+    typeof u.totalProposalsGenerated === "number"
+      ? u.totalProposalsGenerated
+      : await Proposal.countDocuments({ userId: req.user!._id });
+
+  if (typeof u.totalProposalsGenerated !== "number") {
+    await User.updateOne({ _id: req.user!._id }, { $set: { totalProposalsGenerated: used } });
+  }
+
+  if (plan === "free") {
+    res.json(
+      ok({
+        proposalsUsed: used,
+        proposalsLimit: FREE_PROPOSAL_LIFETIME_LIMIT,
+        proposalsRemaining: Math.max(0, FREE_PROPOSAL_LIFETIME_LIMIT - used),
+        plan,
+        resetDate: null,
+      })
+    );
+    return;
+  }
+
+  res.json(
+    ok({
+      proposalsUsed: used,
+      proposalsLimit: null,
+      proposalsRemaining: null,
+      plan,
+      resetDate: null,
+    })
+  );
 }
 
 // ─── GET /api/proposals ───────────────────────────────────────────────────────

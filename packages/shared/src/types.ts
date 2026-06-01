@@ -101,6 +101,8 @@ export interface FollowUpSequence {
   viewed: boolean;
   messages: FollowUpMessage[];
   createdAt: Date;
+  /** Guest preview rows only */
+  isDemo?: boolean;
 }
 
 export interface FollowUpMessage {

@@ -24,6 +24,14 @@ export interface AuthUser {
   avatar?: string;
   voiceProfile?: string;
   projectLibrary: ProjectReference[];
+  stats?: {
+    proposalsSent?: number;
+    repliesReceived?: number;
+    projectsWon?: number;
+    revenueWon?: number;
+    winRate?: number;
+    replyRate?: number;
+  };
 }
 
 export const PA_TOKEN_STORAGE_KEY = "pa_token";

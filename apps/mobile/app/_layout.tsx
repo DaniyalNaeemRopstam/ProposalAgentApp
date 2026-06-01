@@ -59,14 +59,7 @@ export default function RootLayout() {
                 }}
               >
                 <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="auth/login"
-                  options={{ title: "Sign In", headerShown: false }}
-                />
-                <Stack.Screen
-                  name="auth/register"
-                  options={{ title: "Sign Up", headerShown: false }}
-                />
+                <Stack.Screen name="auth" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               </Stack>
             </AppBootstrap>

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DEMO_SEQUENCES, type FollowUpSequence } from "@proposalagent/shared";
+import { SAMPLE_SEQUENCES, type FollowUpSequence } from "@proposalagent/shared";
 import { useAuth } from "../context/AuthContext";
 import { serverApi } from "../lib/api";
 
@@ -18,13 +18,14 @@ function normalizeSequences(payload: unknown): FollowUpSequence[] {
 
 export function useSequences() {
   const { isGuest } = useAuth();
-  return useQuery({
+  const q = useQuery({
     queryKey: ["sequences", isGuest ? "guest" : "auth"],
     queryFn: async (): Promise<FollowUpSequence[]> => {
-      if (isGuest) return [...DEMO_SEQUENCES];
+      if (isGuest) return [...SAMPLE_SEQUENCES];
       const raw = await serverApi.request<unknown>("/api/sequences");
       return normalizeSequences(raw);
     },
     staleTime: 30 * 1000,
   });
+  return { ...q, isDemo: Boolean(isGuest) };
 }

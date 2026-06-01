@@ -1,8 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { Proposal } from "../models/Proposal";
 import { User } from "../models/User";
-import { fail } from "../utils/ApiResponse";
-import { type BillingPlan, PLAN_CONFIGS } from "../utils/stripe";
+import { type BillingPlan, FREE_PROPOSAL_LIFETIME_LIMIT, PLAN_CONFIGS } from "../utils/stripe";
 
 /** Start of current calendar month in UTC. */
 function monthStart(): Date {
@@ -12,13 +11,82 @@ function monthStart(): Date {
   return d;
 }
 
+/** Paid tiers that get unlimited AI proposal generation (billing rules still apply downstream). */
+const PAID_PLANS = new Set<BillingPlan>(["solo", "pro", "enterprise"]);
+
 /**
- * Checks whether the authenticated user is within their plan's monthly proposal quota.
- * - free  → 5 proposals/month (Upwork only)
- * - paid  → unlimited
+ * Enforces lifetime free-tier proposal-generation cap before POST /api/proposals/generate.
+ * - Paid plans → pass (`proposalsRemaining` = null).
+ * - Free plan → gates on persisted `totalProposalsGenerated`, bootstrapped from Proposal count once for legacy rows.
+ *
+ * Mutates Request: proposalsRemaining (free-only: slots left BEFORE this generation), proposalBillingPlan.
+ */
+export async function proposalGuard(req: Request, res: Response, next: NextFunction): Promise<void> {
+  type LeanUser = {
+    plan?: BillingPlan | string;
+    stats?: { proposalsSent?: number };
+    /** Present in Mongo only after first generation/sync; omit on legacy rows → bootstrap from Proposal count */
+    totalProposalsGenerated?: number;
+  };
+
+  const userLean = (await User.findById(req.user!._id)
+    .select("plan stats totalProposalsGenerated")
+    .lean()) as LeanUser | null;
+
+  if (!userLean) {
+    res.status(401).json({ success: false, message: "Account not found." });
+    return;
+  }
+
+  const plan = (userLean.plan ?? "free") as BillingPlan;
+  req.proposalBillingPlan = plan;
+
+  if (PAID_PLANS.has(plan)) {
+    req.proposalsRemaining = null;
+    (req as Request & { userPlan?: string }).userPlan = plan;
+    next();
+    return;
+  }
+
+  // ─── Free: prefer persisted counter; hydrate once from Proposal count when field missing in DB ───
+  const limit = FREE_PROPOSAL_LIFETIME_LIMIT;
+
+  let usedBefore =
+    typeof userLean.totalProposalsGenerated === "number"
+      ? userLean.totalProposalsGenerated
+      : null;
+
+  if (usedBefore == null) {
+    const fromDb = await Proposal.countDocuments({
+      userId: req.user!._id,
+    });
+    usedBefore = fromDb;
+    await User.updateOne({ _id: req.user!._id }, { $set: { totalProposalsGenerated: fromDb } });
+  }
+
+  req.proposalsRemaining = Math.max(0, limit - usedBefore);
+
+  if (usedBefore >= limit) {
+    res.status(403).json({
+      success: false,
+      code: "PROPOSAL_LIMIT_REACHED",
+      message: "You have used all 3 free proposals",
+      proposalsUsed: usedBefore,
+      proposalsLimit: limit,
+      upgradeUrl: "/settings/billing",
+    });
+    return;
+  }
+
+  (req as Request & { userPlan?: string }).userPlan = plan;
+  next();
+}
+
+/**
+ * AI routes that aren't proposal generation — optional monthly quotas for hypothetical finite paid caps.
+ * Free-tier proposal limits live in proposalGuard instead.
  *
  * Must run after `requireAuth`.
- * Returns HTTP 403 with an upgrade message when the limit is exceeded.
  */
 export async function planGuard(
   req: Request,
@@ -27,7 +95,7 @@ export async function planGuard(
 ): Promise<void> {
   const user = await User.findById(req.user!._id, "plan").lean();
   if (!user) {
-    res.status(401).json(fail("Account not found."));
+    res.status(401).json({ success: false, message: "Account not found." });
     return;
   }
 
@@ -35,40 +103,43 @@ export async function planGuard(
   const config = PLAN_CONFIGS[plan];
   const limit = config.proposalsPerMonth;
 
-  // Paid plans have no monthly cap
-  if (limit === null) {
-    // Attach plan for downstream use (e.g. aiRateLimiter)
+  if (plan === "free") {
     (req as Request & { userPlan?: string }).userPlan = plan;
     next();
     return;
   }
 
-  // Count non-draft proposals created this month
-  const used = await Proposal.countDocuments({
+  if (limit === null) {
+    (req as Request & { userPlan?: string }).userPlan = plan;
+    next();
+    return;
+  }
+
+  const usedMonth = await Proposal.countDocuments({
     userId: req.user!._id,
     status: { $nin: ["draft"] },
     createdAt: { $gte: monthStart() },
   });
 
-  if (used >= limit) {
+  if (usedMonth >= limit) {
     const nextReset = new Date();
     nextReset.setUTCMonth(nextReset.getUTCMonth() + 1, 1);
     nextReset.setUTCHours(0, 0, 0, 0);
 
-    res.status(403).json(
-      fail(
+    res.status(403).json({
+      success: false,
+      message:
         `You have used all ${limit} proposals included in the ${config.name} plan this month. ` +
-          `Upgrade to Solo ($49/mo) for unlimited proposals across all platforms. ` +
-          `Your quota resets on ${nextReset.toDateString()}.`,
-        {
-          plan,
-          used,
-          limit,
-          nextReset: nextReset.toISOString(),
-          upgradeUrl: "/dashboard?section=billing",
-        }
-      )
-    );
+        `Upgrade to Solo ($49/mo) for unlimited proposals across all platforms. ` +
+        `Your quota resets on ${nextReset.toDateString()}.`,
+      errors: {
+        plan,
+        used: usedMonth,
+        limit,
+        nextReset: nextReset.toISOString(),
+        upgradeUrl: "/dashboard?section=billing",
+      },
+    });
     return;
   }
 

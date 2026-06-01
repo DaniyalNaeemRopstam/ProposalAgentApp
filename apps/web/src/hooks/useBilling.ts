@@ -8,7 +8,11 @@ export type BillingPlan = "free" | "solo" | "pro" | "enterprise";
 export interface BillingStatus {
   plan: BillingPlan;
   proposalsUsedThisMonth: number;
+  proposalsUsedLifetime?: number;
+  proposalsUsedForUi?: number;
   proposalsLimit: number | null; // null = unlimited
+  proposalsLimitIsLifetime?: boolean;
+  unlimited?: boolean;
   nextReset: string; // ISO date
 }
 
@@ -87,9 +91,9 @@ export const PLAN_CONFIGS = {
   free: {
     name: "Free",
     price: 0,
-    proposalsPerMonth: 5,
+    proposalsPerMonth: 3,
     platforms: ["Upwork"],
-    features: ["5 proposals/month", "Upwork only", "Basic job scoring"],
+    features: ["3 free AI proposals", "Upwork only", "Basic job scoring"],
   },
   solo: {
     name: "Solo", 

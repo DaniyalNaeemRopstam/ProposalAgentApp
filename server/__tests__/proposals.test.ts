@@ -1,7 +1,7 @@
 import request from "supertest";
 import mongoose from "mongoose";
 import { createApp } from "../src/createApp";
-import { Proposal } from "../src/models/Proposal";
+import { User } from "../src/models/User";
 
 jest.mock("../src/services/proposalService", () => ({
   generateProposal: jest.fn().mockResolvedValue({
@@ -60,15 +60,9 @@ describe("POST /api/proposals/generate", () => {
     const loginRes = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`).expect(200);
     const userId = loginRes.body.data._id as string;
 
-    await Proposal.insertMany(
-      Array.from({ length: 5 }, () => ({
-        userId: new mongoose.Types.ObjectId(userId),
-        job: { title: "T", platform: "Upwork", budget: "$1", snippet: "x" },
-        mode: "upwork",
-        variant: "quality",
-        content: "sent proposal text",
-        status: "sent",
-      }))
+    await User.updateOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      { $set: { totalProposalsGenerated: 3 } }
     );
 
     const res = await request(app)
@@ -79,6 +73,7 @@ describe("POST /api/proposals/generate", () => {
       .expect(403);
 
     expect(res.body.success).toBe(false);
-    expect(String(res.body.message)).toMatch(/upgrade|plan|quota/i);
+    expect(res.body.code).toBe("PROPOSAL_LIMIT_REACHED");
+    expect(String(res.body.message)).toMatch(/3 free proposals/i);
   });
 });

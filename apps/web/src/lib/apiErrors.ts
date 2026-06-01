@@ -94,6 +94,28 @@ export async function notifyHttpError(res: Response): Promise<void> {
   }
 
   if (res.status === 403) {
+    let code: unknown;
+    try {
+      const cloned = res.clone();
+      const raw = (await cloned.json()) as unknown;
+      if (
+        raw &&
+        typeof raw === "object" &&
+        "code" in raw &&
+        (raw as { code: unknown }).code === "PROPOSAL_LIMIT_REACHED"
+      ) {
+        code = "PROPOSAL_LIMIT_REACHED";
+      }
+    } catch {
+      /* ignore malformed JSON */
+    }
+
+    if (code === "PROPOSAL_LIMIT_REACHED") {
+      const { useAppStore } = await import("@/store/appStore");
+      useAppStore.getState().setShowUpgradeModal(true);
+      return;
+    }
+
     openUpgradeModalFromApiError();
     toast(msg, {
       icon: "⚠️",

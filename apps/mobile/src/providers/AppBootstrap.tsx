@@ -3,6 +3,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState, useCallback } from "react";
+import { DeviceEventEmitter } from "react-native";
 import { flushPendingMutationQueue } from "../lib/pendingMutations";
 import { setupPushRegistration } from "../lib/pushNotifications";
 import { registerBackgroundJobFetch } from "../tasks/backgroundJobFetch";
@@ -19,6 +20,7 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [banner, setBanner] = useState<BannerState>({ visible: false, title: "" });
+  const [welcomeToast, setWelcomeToast] = useState<string | null>(null);
 
   const handleBannerDismiss = useCallback(() => {
     setBanner({ visible: false, title: "" });
@@ -102,8 +104,28 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
     };
   }, [router, qc]);
 
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(
+      "pa-welcome-toast",
+      (msg: unknown) => {
+        setWelcomeToast(typeof msg === "string" ? msg : "Welcome!");
+        setTimeout(() => setWelcomeToast(null), 4500);
+      }
+    );
+    return () => sub.remove();
+  }, []);
+
+  const dismissWelcome = useCallback(() => setWelcomeToast(null), []);
+
   return (
     <>
+      {welcomeToast ? (
+        <InAppBanner
+          title={welcomeToast}
+          onDismiss={dismissWelcome}
+          autoDismissMs={4500}
+        />
+      ) : null}
       {banner.visible && (
         <InAppBanner
           title={banner.title}

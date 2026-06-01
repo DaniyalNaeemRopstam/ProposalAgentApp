@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
-  demoPipelineGrouped,
-  DEMO_PIPELINE_TOTAL_VALUE,
+  guestPipelineGrouped,
+  SAMPLE_PIPELINE_TOTAL_VALUE,
 } from "@proposalagent/shared";
 import { useAuth } from "@/context/AuthContext";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
@@ -71,15 +71,17 @@ async function fetchPipeline(): Promise<{
 
 export function usePipeline() {
   const { isGuest } = useAuth();
-  return useQuery({
+  const q = useQuery({
     queryKey: ["pipeline", isGuest ? "guest" : "auth"],
     queryFn: () =>
       isGuest
         ? Promise.resolve({
-            grouped: demoPipelineGrouped() as Record<PipelineStageId, PipelineDealRow[]>,
-            totalValue: DEMO_PIPELINE_TOTAL_VALUE,
+            grouped: guestPipelineGrouped() as Record<PipelineStageId, PipelineDealRow[]>,
+            totalValue: SAMPLE_PIPELINE_TOTAL_VALUE,
           })
         : fetchPipeline(),
     staleTime: 20 * 1000,
   });
+
+  return { ...q, isDemo: Boolean(isGuest) };
 }

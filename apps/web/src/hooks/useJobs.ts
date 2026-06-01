@@ -37,7 +37,7 @@ export function useJobs(options?: UseJobsOptions) {
   const limit = options?.limit ?? 100;
   const refetchInterval = options?.refetchInterval ?? 1_000 * 60 * 15;
 
-  return useQuery({
+  const q = useQuery({
     queryKey: ["jobs", source, minScore, limit, isGuest ? "guest" : "auth"],
     queryFn: async (): Promise<Job[]> => {
       if (isGuest) return [...SAMPLE_JOBS];
@@ -65,4 +65,6 @@ export function useJobs(options?: UseJobsOptions) {
     staleTime: 30 * 1000,
     refetchInterval: isGuest ? false : refetchInterval,
   });
+
+  return { ...q, isDemo: Boolean(isGuest) };
 }

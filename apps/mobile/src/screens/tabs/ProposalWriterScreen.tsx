@@ -8,6 +8,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   KeyboardAvoidingView,
@@ -23,11 +24,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
+import { SignupPromptModal } from "../../components/modals/SignupPromptModal";
+import { UpgradeModal } from "../../components/modals/UpgradeModal";
 import { ScoreRing } from "../../components/ScoreRing";
 import { useJob } from "../../hooks/useJob";
 import { useJobs } from "../../hooks/useJobs";
-import { useGuestAiGate } from "../../hooks/useGuestAiGate";
 import { useNetworkStatus } from "../../hooks/useNetworkStatus";
+import { useAuth } from "../../context/AuthContext";
 import { serverApi } from "../../lib/api";
 import { requestMarkProposalSent } from "../../lib/markProposalSentApi";
 import {
@@ -45,6 +48,7 @@ import {
   normalizeJobId,
 } from "../../lib/proposalApiHelpers";
 import { streamProposalContent } from "../../lib/streamProposal";
+import { FREE_PROPOSAL_LIMIT } from "../../lib/proposalLimits";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
 
@@ -72,7 +76,7 @@ export default function ProposalWriterScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const net = useNetworkStatus();
-  const { requireAuthForAi } = useGuestAiGate();
+  const { user, isGuest } = useAuth();
   const offline =
     net.isConnected === false || net.isInternetReachable === false;
 
@@ -116,6 +120,9 @@ export default function ProposalWriterScreen() {
 
   const [jobPickerOpen, setJobPickerOpen] = useState(false);
   const [regenOpen, setRegenOpen] = useState(false);
+
+  const [signupOpen, setSignupOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   useEffect(() => {
     if (!job?.platform) return;
@@ -174,8 +181,6 @@ export default function ProposalWriterScreen() {
 
   const runGenerate = useCallback(
     async (source: ApiJobRecord) => {
-      if (!requireAuthForAi()) return;
-
       const jid = normalizeJobId(source._id) || jobId;
       if (!jid) {
         setGenerateError("Missing job reference.");
@@ -235,6 +240,7 @@ export default function ProposalWriterScreen() {
           Haptics.NotificationFeedbackType.Success
         );
         scrollProposalIntoView();
+        await qc.invalidateQueries({ queryKey: ["auth"] });
       } catch (e) {
         setGenerating(false);
         const msg =
@@ -246,8 +252,25 @@ export default function ProposalWriterScreen() {
         setGenerateError(msg);
       }
     },
-    [jobId, mode, variant, scrollProposalIntoView, requireAuthForAi]
+    [jobId, mode, variant, scrollProposalIntoView, qc]
   );
+
+  const proposalsUsed = user?.stats?.proposalsSent ?? 0;
+  const freeAtLimit =
+    !isGuest && user?.plan === "free" && proposalsUsed >= FREE_PROPOSAL_LIMIT;
+
+  const handleGeneratePress = useCallback(() => {
+    if (!job) return;
+    if (isGuest) {
+      setSignupOpen(true);
+      return;
+    }
+    if (user?.plan === "free" && (user.stats?.proposalsSent ?? 0) >= FREE_PROPOSAL_LIMIT) {
+      setUpgradeOpen(true);
+      return;
+    }
+    runGenerate(job);
+  }, [job, isGuest, user, runGenerate]);
 
   const wordCount = proposalText.trim()
     ? proposalText.trim().split(/\s+/).filter(Boolean).length
@@ -484,21 +507,48 @@ export default function ProposalWriterScreen() {
           })}
         </ScrollView>
 
-        <Pressable
-          disabled={generating || offline}
-          onPress={() => runGenerate(job)}
-          style={({ pressed }) => [
-            styles.genBig,
-            (generating || offline) && styles.genBigDisabled,
-            pressed && !generating && !offline && { opacity: 0.92 },
-          ]}
-        >
-          {generating ? (
-            <Text style={styles.genBigText}>Working…</Text>
-          ) : (
-            <Text style={styles.genBigText}>⚡ Generate AI Proposal</Text>
-          )}
-        </Pressable>
+        <View style={styles.genBigWrap}>
+          <Pressable
+            disabled={generating || offline}
+            onPress={() => handleGeneratePress()}
+            style={({ pressed }) => [
+              styles.genBig,
+              (generating || offline) && styles.genBigDisabled,
+              pressed && !generating && !offline && { opacity: 0.92 },
+            ]}
+          >
+            {generating ? (
+              <Text style={styles.genBigText}>Working…</Text>
+            ) : (
+              <Text style={styles.genBigText}>
+                {freeAtLimit ? "Upgrade to generate" : "⚡ Generate AI Proposal"}
+              </Text>
+            )}
+          </Pressable>
+          {isGuest ? (
+            <View style={styles.genLockBadge} pointerEvents="none">
+              <Ionicons name="lock-closed-outline" size={15} color={colors.textDim} />
+            </View>
+          ) : null}
+        </View>
+        {!isGuest && user?.plan === "free" ? (
+          <View style={{ marginTop: 10 }}>
+            <Text style={styles.counterText}>
+              {Math.min(proposalsUsed, FREE_PROPOSAL_LIMIT)} / {FREE_PROPOSAL_LIMIT} free
+              proposals used
+            </Text>
+            <View style={styles.counterTrack}>
+              <View
+                style={[
+                  styles.counterFill,
+                  {
+                    width: `${Math.min(100, (Math.min(proposalsUsed, FREE_PROPOSAL_LIMIT) / FREE_PROPOSAL_LIMIT) * 100)}%`,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        ) : null}
         {offline ? (
           <Text style={styles.offlineGenHint}>
             Internet required to generate proposals.
@@ -649,7 +699,7 @@ export default function ProposalWriterScreen() {
             style={styles.regRow}
             onPress={() => {
               setRegenOpen(false);
-              runGenerate(job);
+              handleGeneratePress();
             }}
           >
             <Ionicons name="refresh" size={18} color={colors.accent} />
@@ -728,6 +778,21 @@ export default function ProposalWriterScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <SignupPromptModal
+        visible={signupOpen}
+        onClose={() => setSignupOpen(false)}
+        onRegistered={() => {
+          if (job) void runGenerate(job);
+        }}
+      />
+      <UpgradeModal
+        visible={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        onMaybeLater={() => {
+          Alert.alert("Proposal limit", "You have 0 proposals remaining.");
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -853,12 +918,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
   },
   varPillTextOn: { color: colors.purple, fontFamily: fonts.semiBold },
+  genBigWrap: {
+    position: "relative",
+    marginBottom: 16,
+    alignSelf: "stretch",
+  },
   genBig: {
     backgroundColor: colors.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 0,
+  },
+  genLockBadge: {
+    position: "absolute",
+    right: 12,
+    top: "50%",
+    transform: [{ translateY: -9 }],
+    opacity: 0.9,
   },
   genBigDisabled: { opacity: 0.75 },
   offlineGenHint: {
@@ -879,6 +956,24 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: fonts.semiBold,
     color: colors.text,
+  },
+  counterText: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textMuted,
+    marginBottom: 6,
+  },
+  counterTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  counterFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
   },
   loadBox: {
     borderWidth: 1,

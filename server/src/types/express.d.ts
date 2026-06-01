@@ -11,6 +11,10 @@ declare global {
       user?: AuthUserPayload;
       /** Set by `validate()` middleware */
       validated?: unknown;
+      /** Set by `proposalGuard`: remaining free generations BEFORE this POST /generate succeeds (paid → null). */
+      proposalsRemaining?: number | null;
+      /** Billing plan resolved in `proposalGuard` for `/generate` response meta. */
+      proposalBillingPlan?: "free" | "solo" | "pro" | "enterprise";
     }
   }
 }

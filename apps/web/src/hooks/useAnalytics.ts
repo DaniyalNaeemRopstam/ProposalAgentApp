@@ -1,12 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  DEMO_ANALYTICS_INSIGHTS,
-  DEMO_ANALYTICS_MONTHLY,
-  DEMO_ANALYTICS_OVERVIEW,
-  DEMO_ANALYTICS_PLATFORMS,
-} from "@proposalagent/shared";
+import { SAMPLE_ANALYTICS } from "@proposalagent/shared";
 import { useAuth } from "@/context/AuthContext";
 import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
@@ -98,42 +93,54 @@ async function fetchAnalyticsInsights(): Promise<AIInsight[]> {
 
 export function useAnalyticsOverview() {
   const { isGuest } = useAuth();
-  return useQuery({
+  const q = useQuery({
     queryKey: ["analytics", "overview", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      isGuest ? Promise.resolve(DEMO_ANALYTICS_OVERVIEW) : fetchAnalyticsOverview(),
+      isGuest
+        ? Promise.resolve(SAMPLE_ANALYTICS.overview)
+        : fetchAnalyticsOverview(),
     staleTime: 60 * 1000,
   });
+  return { ...q, isDemo: Boolean(isGuest) };
 }
 
 export function useAnalyticsMonthly() {
   const { isGuest } = useAuth();
-  return useQuery({
+  const q = useQuery({
     queryKey: ["analytics", "monthly", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      isGuest ? Promise.resolve(DEMO_ANALYTICS_MONTHLY) : fetchAnalyticsMonthly(),
+      isGuest
+        ? Promise.resolve([...SAMPLE_ANALYTICS.monthly])
+        : fetchAnalyticsMonthly(),
     staleTime: 5 * 60 * 1000,
   });
+  return { ...q, isDemo: Boolean(isGuest) };
 }
 
 export function useAnalyticsPlatforms() {
   const { isGuest } = useAuth();
-  return useQuery({
+  const q = useQuery({
     queryKey: ["analytics", "platforms", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      isGuest ? Promise.resolve(DEMO_ANALYTICS_PLATFORMS) : fetchAnalyticsPlatforms(),
+      isGuest
+        ? Promise.resolve([...SAMPLE_ANALYTICS.platforms])
+        : fetchAnalyticsPlatforms(),
     staleTime: 5 * 60 * 1000,
   });
+  return { ...q, isDemo: Boolean(isGuest) };
 }
 
 export function useAnalyticsInsights() {
   const { isGuest } = useAuth();
-  return useQuery({
+  const q = useQuery({
     queryKey: ["analytics", "insights", isGuest ? "guest" : "auth"],
     queryFn: () =>
-      isGuest ? Promise.resolve(DEMO_ANALYTICS_INSIGHTS) : fetchAnalyticsInsights(),
+      isGuest
+        ? Promise.resolve([...SAMPLE_ANALYTICS.insights])
+        : fetchAnalyticsInsights(),
     staleTime: 24 * 60 * 60 * 1000,
   });
+  return { ...q, isDemo: Boolean(isGuest) };
 }
 
 export function useRefreshInsights() {

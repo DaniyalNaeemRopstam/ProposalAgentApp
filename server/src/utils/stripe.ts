@@ -13,6 +13,9 @@ export interface PlanConfig {
   stripePriceId: string;
 }
 
+/** Free tier: lifetime AI proposal generations (see `proposalGuard`, `totalProposalsGenerated`). */
+export const FREE_PROPOSAL_LIFETIME_LIMIT = 3;
+
 /** Stripe price IDs — set the real IDs from your Stripe dashboard in .env */
 export const STRIPE_PRICE_IDS: Record<Exclude<BillingPlan, "free">, string> = {
   solo: process.env.STRIPE_PRICE_SOLO ?? "price_solo_placeholder",
@@ -24,9 +27,9 @@ export const PLAN_CONFIGS: Record<BillingPlan, PlanConfig> = {
   free: {
     name: "Free",
     price: 0,
-    proposalsPerMonth: 5,
+    proposalsPerMonth: FREE_PROPOSAL_LIFETIME_LIMIT,
     platforms: ["upwork"],
-    features: ["5 proposals/month", "Upwork only", "Basic job scoring"],
+    features: ["3 free AI proposals (lifetime)", "Upwork only", "Basic job scoring"],
     stripePriceId: "",
   },
   solo: {
