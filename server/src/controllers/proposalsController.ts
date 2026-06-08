@@ -16,6 +16,7 @@ import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
 import { FREE_PROPOSAL_LIFETIME_LIMIT, type BillingPlan } from "../utils/stripe";
 import { scheduleOnboardingEmailsAfterProposal } from "../services/onboardingEmailTriggers";
+import { stopSequencesForProposal } from "../services/sequenceStopService";
 
 function generateResponseMeta(req: Request): {
   proposalsRemaining: number | null;
@@ -335,6 +336,11 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
       { _id: req.user!._id },
       { $inc: { "stats.repliesReceived": 1 } }
     );
+    await stopSequencesForProposal(updated._id);
+  }
+
+  if (body.status === "won") {
+    await stopSequencesForProposal(updated._id);
   }
 
   if (body.status === "won" || body.status === "replied") {

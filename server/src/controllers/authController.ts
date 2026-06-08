@@ -13,6 +13,7 @@ import {
 } from "../schemas/authSchemas";
 import { backfillAggregatedJobsForUser } from "../services/jobBackfillService";
 import { scheduleWelcomeEmailAfterRegister } from "../services/onboardingEmailTriggers";
+import { analyzeVoiceFromSamples } from "../services/voiceProfileService";
 import { ApiError } from "../utils/ApiError";
 import { ok } from "../utils/ApiResponse";
 import type { z } from "zod";
@@ -141,11 +142,11 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
 export async function saveVoiceProfile(req: Request, res: Response): Promise<void> {
   const body = req.validated as z.infer<typeof voiceProfileBodySchema>;
 
-  const combined = body.sampleProposals.map((s) => s.trim()).join(VOICE_SAMPLE_SEPARATOR);
+  const voiceProfile = await analyzeVoiceFromSamples(body.sampleProposals);
 
   const user = await User.findByIdAndUpdate(
     req.user!._id,
-    { $set: { voiceProfile: combined } },
+    { $set: { voiceProfile } },
     { new: true, runValidators: true }
   );
 

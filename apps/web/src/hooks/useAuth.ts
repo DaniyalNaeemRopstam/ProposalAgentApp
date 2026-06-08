@@ -76,7 +76,12 @@ export function useSaveVoiceProfile() {
           "Content-Type": "application/json",
           ...authHeaders(),
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          sampleProposals: data.samples
+            .split(/\n---\n/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        }),
       });
       if (!res.ok) {
         const json = await res.json();

@@ -384,15 +384,13 @@ export function ProposalTab() {
     setMarkSentError(null);
     setMarkSentLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/proposals/${proposalMongoId}/status`), {
-        method: "PUT",
+      const res = await fetch(apiUrl(`/api/proposals/${proposalMongoId}/mark-sent`), {
+        method: "POST",
         credentials: "include",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
           ...authHeaders(),
         },
-        body: JSON.stringify({ status: "sent" }),
       });
       if (!res.ok) {
         await notifyHttpError(res);

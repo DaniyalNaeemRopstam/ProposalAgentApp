@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveApiBackendUrl } from "@/lib/apiBackend";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const FORWARD_HEADERS = ["authorization", "content-type", "accept"] as const;
 
@@ -42,6 +43,18 @@ async function proxy(req: NextRequest, ctx: { params: { path: string[] } }) {
   const resHeaders = new Headers();
   const contentType = upstream.headers.get("content-type");
   if (contentType) resHeaders.set("content-type", contentType);
+  const cacheControl = upstream.headers.get("cache-control");
+  if (cacheControl) resHeaders.set("cache-control", cacheControl);
+  const connection = upstream.headers.get("connection");
+  if (connection) resHeaders.set("connection", connection);
+
+  // Stream SSE proposal generation without buffering the full response
+  if (contentType?.includes("text/event-stream") && upstream.body) {
+    return new NextResponse(upstream.body, {
+      status: upstream.status,
+      headers: resHeaders,
+    });
+  }
 
   return new NextResponse(await upstream.text(), {
     status: upstream.status,

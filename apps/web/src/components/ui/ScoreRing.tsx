@@ -15,7 +15,7 @@ export interface ScoreRingProps {
 function strokeHex(score: number): string {
   const s = Math.min(100, Math.max(0, score));
   if (s >= 90) return C.success;
-  if (s >= 75) return C.accent;
+  if (s >= 78) return C.accent;
   return C.warn;
 }
 

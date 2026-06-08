@@ -6,7 +6,7 @@ import { fonts } from "../theme/fonts";
 
 function ringColor(score: number) {
   if (score >= 90) return colors.success;
-  if (score >= 75) return colors.accent;
+  if (score >= 78) return colors.accent;
   return colors.warn;
 }
 

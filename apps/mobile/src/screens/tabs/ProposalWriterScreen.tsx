@@ -40,7 +40,6 @@ import {
 } from "../../lib/pendingMutations";
 import {
   type ApiJobRecord,
-  type GenerateEnvelope,
   type ProposalMode,
   type ProposalVariant,
   buildGenerateBody,
@@ -48,7 +47,7 @@ import {
   mapPlatformToMode,
   normalizeJobId,
 } from "../../lib/proposalApiHelpers";
-import { streamProposalContent } from "../../lib/streamProposal";
+import { generateProposalStream } from "../../lib/streamProposal";
 import { FREE_PROPOSAL_LIMIT } from "../../lib/proposalLimits";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
@@ -206,36 +205,13 @@ export default function ProposalWriterScreen() {
 
       try {
         const body = buildGenerateBody(source, jid, mode, variant);
-        const envelope = await serverApi.request<GenerateEnvelope>(
-          "/api/proposals/generate",
-          {
-            method: "POST",
-            body,
-          }
-        );
-        const content = envelope.proposal?.content ?? "";
-        const rp =
-          typeof envelope.replyProbability === "number"
-            ? envelope.replyProbability
-            : envelope.proposal?.replyProbability ?? 68;
-        const ps =
-          typeof envelope.proposalScore === "number"
-            ? envelope.proposalScore
-            : envelope.proposal?.proposalScore ?? null;
-        const id = envelope.proposal?._id
-          ? String(envelope.proposal._id)
-          : null;
+        const result = await generateProposalStream(body, setProposalText);
 
-        if (id) setProposalId(id);
-        setReplyProbability(
-          typeof rp === "number" && !Number.isNaN(rp) ? rp : 68
-        );
-        setProposalScore(
-          typeof ps === "number" && !Number.isNaN(ps) ? Math.round(ps) : null
-        );
+        if (result.proposalId) setProposalId(result.proposalId);
+        setReplyProbability(result.replyProbability);
+        setProposalScore(result.proposalScore);
 
         setGenerating(false);
-        await streamProposalContent(content, setProposalText, 12);
 
         void Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success

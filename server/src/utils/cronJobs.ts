@@ -1,6 +1,7 @@
 import { Proposal } from "../models/Proposal";
 import { Sequence } from "../models/Sequence";
 import { User } from "../models/User";
+import { stopSequencesForProposal } from "../services/sequenceStopService";
 import { emitSequenceDue } from "../realtime/emitters";
 import { sendPushNotification } from "./notifications";
 
@@ -18,24 +19,14 @@ async function syncStoppedSequences(): Promise<void> {
 
   if (!repliedOrWon.length) return;
 
-  const proposalIds = repliedOrWon.map((p) => p._id);
+  let stopped = 0;
+  for (const p of repliedOrWon) {
+    stopped += await stopSequencesForProposal(p._id);
+  }
 
-  const result = await Sequence.updateMany(
-    { proposalId: { $in: proposalIds }, status: "active" },
-    {
-      $set: {
-        status: "replied",
-        "messages.$[pending].status": "skipped",
-      },
-    },
-    {
-      arrayFilters: [{ "pending.status": "pending" }],
-    }
-  );
-
-  if (result.modifiedCount > 0 && process.env.NODE_ENV !== "production") {
+  if (stopped > 0 && process.env.NODE_ENV !== "production") {
     console.info(
-      `[cron] auto-stopped ${result.modifiedCount} sequence(s) — proposal replied/won`
+      `[cron] auto-stopped ${stopped} sequence(s) — proposal replied/won`
     );
   }
 }

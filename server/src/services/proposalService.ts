@@ -88,6 +88,31 @@ const MODE_SIGNATURE: Record<ProposalMode, string> = {
     "prefixed with 'Subject:', professional but personable, max 250 words body.",
 };
 
+function formatVoiceProfileForPrompt(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    const lines: string[] = [];
+    if (typeof parsed.openingStyle === "string") lines.push(`Opening style: ${parsed.openingStyle}`);
+    if (typeof parsed.tone === "string") lines.push(`Tone: ${parsed.tone}`);
+    if (Array.isArray(parsed.commonPhrases)) {
+      lines.push(`Common phrases: ${parsed.commonPhrases.join("; ")}`);
+    }
+    if (Array.isArray(parsed.avoidedPhrases)) {
+      lines.push(`Avoid: ${parsed.avoidedPhrases.join("; ")}`);
+    }
+    if (typeof parsed.closingStyle === "string") lines.push(`Closing style: ${parsed.closingStyle}`);
+    if (Array.isArray(parsed.uniqueQualities)) {
+      lines.push(`Unique qualities: ${parsed.uniqueQualities.join("; ")}`);
+    }
+    if (lines.length) return lines.join("\n").slice(0, 3000);
+  } catch {
+    /* raw text fallback */
+  }
+  return `${trimmed.slice(0, 3000)}${trimmed.length > 3000 ? "\n[...truncated...]" : ""}`;
+}
+
 // ─── Project library formatter ────────────────────────────────────────────────
 
 function formatProjectLibrary(
@@ -125,7 +150,7 @@ function buildProposalPrompt(input: GenerateProposalInput): string {
   const projectSection = formatProjectLibrary(user.projectLibrary, input.tags);
 
   const voiceSection = user.voiceProfile
-    ? `\nYour writing style (extracted from past winning proposals — replicate this voice):\n"""\n${user.voiceProfile.slice(0, 3000)}${user.voiceProfile.length > 3000 ? "\n[...truncated...]" : ""}\n"""`
+    ? `\nYour writing style (extracted from past winning proposals — replicate this voice):\n"""\n${formatVoiceProfileForPrompt(user.voiceProfile)}\n"""`
     : "";
 
   return `You are ${user.name}, founder of ${user.companyName}, a senior React Native & MERN stack developer with 7+ years of experience and a US LLC.
