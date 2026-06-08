@@ -7,7 +7,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import type { Job } from "@proposalagent/shared";
+import { resolveJobListingUrl, type Job } from "@proposalagent/shared";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/fonts";
 import { ScoreRing } from "./ScoreRing";
@@ -174,11 +174,11 @@ export function JobCard({
           </View>
         ) : null}
 
-        {job.sourceUrl ? (
+        {resolveJobListingUrl(job) ? (
           <Button
             title={`Open in ${job.platform} ↗`}
             variant="ghost"
-            onPress={() => Linking.openURL(job.sourceUrl!)}
+            onPress={() => Linking.openURL(resolveJobListingUrl(job)!)}
             style={styles.viewOriginalBtn}
           />
         ) : null}

@@ -10,6 +10,7 @@ import { runDayThreeReengagementBatch } from "../services/dayThreeReengagementJo
 import { sendPushNotification } from "../utils/notifications";
 import { emitNewJobMatch } from "../realtime/emitters";
 import type { AggregatedJobData } from "../services/aggregationTypes";
+import { purgePlaceholderJobs } from "../services/purgePlaceholderJobs";
 
 interface AggregationStats {
   lastRun: Date;
@@ -78,6 +79,11 @@ export async function runAggregation(): Promise<AggregationStats> {
   };
 
   try {
+    const purged = await purgePlaceholderJobs();
+    if (purged > 0) {
+      console.log(`[aggregator] Removed ${purged} placeholder job(s)`);
+    }
+
     // 1. Fetch from all sources in parallel (don't fail if one source errors)
     const [upworkResult, linkedinResult, wellfoundResult, hnResult] =
       await Promise.allSettled([

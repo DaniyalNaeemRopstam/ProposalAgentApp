@@ -14,7 +14,7 @@ import { Icon } from "@/components/dashboard/Icon";
 import { apiUrl, authHeaders } from "@/lib/api";
 import { notifyHttpError } from "@/lib/apiErrors";
 import toast from "react-hot-toast";
-import type { Job } from "@proposalagent/shared";
+import { resolveJobListingUrl, type Job } from "@proposalagent/shared";
 import { useAuth } from "@/context/AuthContext";
 import { useAppStore } from "@/store/appStore";
 import { C } from "@/styles/theme";
@@ -333,7 +333,7 @@ export default function JobsPage() {
           {filteredJobs.map((job, i) => {
             const id = jobKey(job, i);
             const expanded = expandedId === id;
-            const sourceUrl = job.sourceUrl || job.url;
+            const sourceUrl = resolveJobListingUrl(job);
             return (
               <div
                 key={id}

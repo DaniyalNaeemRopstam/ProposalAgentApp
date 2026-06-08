@@ -13,6 +13,7 @@ import {
 } from "../workers/jobAggregator";
 import { Job } from "../models/Job";
 import { AppSettings, getStoredRapidApiKey } from "../models/AppSettings";
+import { purgePlaceholderJobs } from "../services/purgePlaceholderJobs";
 import { ok } from "../utils/ApiResponse";
 
 export const integrationsRouter = Router();
@@ -53,6 +54,7 @@ integrationsRouter.put(
 integrationsRouter.post(
   "/sync",
   asyncHandler(async (req, res) => {
+    const purged = await purgePlaceholderJobs();
     const stats = await runAggregation();
     const userId = req.user!._id;
     const backfilled = await backfillAggregatedJobsForUser(userId);
@@ -67,6 +69,7 @@ integrationsRouter.post(
         hotJobsFound: stats.hotJobsFound,
         errors: stats.errors,
         backfilled,
+        purgedPlaceholders: purged,
       },
     });
   })

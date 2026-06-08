@@ -11,7 +11,7 @@ import { apiUrl, authHeaders, parseEnvelope } from "@/lib/api";
 import toast from "react-hot-toast";
 import { notifyHttpError, notifyNetworkError } from "@/lib/apiErrors";
 import { useAuth } from "@/context/AuthContext";
-import { findDemoJobById } from "@proposalagent/shared";
+import { findDemoJobById, resolveJobListingUrl } from "@proposalagent/shared";
 import { FREE_PROPOSAL_LIMIT } from "@/lib/proposalLimits";
 import { useAppStore } from "@/store/appStore";
 
@@ -31,11 +31,7 @@ type ApiJobRecord = Record<string, unknown> & {
 };
 
 function getJobSourceUrl(job: ApiJobRecord): string | null {
-  const raw =
-    (typeof job.sourceUrl === "string" ? job.sourceUrl : "") ||
-    (typeof job.url === "string" ? job.url : "");
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return resolveJobListingUrl(job);
 }
 
 function mapPlatformToMode(platform: string): "upwork" | "linkedin" | "email" {

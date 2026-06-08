@@ -100,14 +100,21 @@ export async function fetchWellfoundJobs(): Promise<AggregatedJobData[]> {
 
     const source = rnRemote.length > 0 ? rnRemote : allJobs;
 
-    return source.map((result) => ({
+    return source
+      .filter((result) => {
+        const slug = result.slug?.trim() || "";
+        if (!slug || slug === "/") return false;
+        if (/\/jobs\/example-/i.test(slug)) return false;
+        return true;
+      })
+      .map((result) => ({
       platform: "Wellfound" as const,
       externalId: result.id?.toString() || "",
       title: result.title,
       snippet: result.description?.slice(0, 250) || "",
       budget: result.salary || "Equity + Salary",
       posted: result.created_at,
-      sourceUrl: `https://wellfound.com${result.slug || ""}`,
+      sourceUrl: `https://wellfound.com${result.slug}`,
       client: {
         name: result.startup?.name || "Unknown Startup",
         country: result.remote ? "🌐 Remote" : result.startup?.location || "Unknown",

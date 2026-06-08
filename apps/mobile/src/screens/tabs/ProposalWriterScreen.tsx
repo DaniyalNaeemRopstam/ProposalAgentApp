@@ -49,6 +49,7 @@ import {
 } from "../../lib/proposalApiHelpers";
 import { generateProposalStream } from "../../lib/streamProposal";
 import { FREE_PROPOSAL_LIMIT } from "../../lib/proposalLimits";
+import { resolveJobListingUrl } from "@proposalagent/shared";
 import { colors } from "../../theme/colors";
 import { fonts } from "../../theme/fonts";
 
@@ -398,11 +399,7 @@ export default function ProposalWriterScreen() {
     typeof job.platform === "string" && job.platform.trim().length
       ? job.platform
       : "listing";
-  const sourceUrl =
-    (typeof job.sourceUrl === "string" ? job.sourceUrl.trim() : "") ||
-    (typeof (job as { url?: string }).url === "string"
-      ? (job as { url: string }).url.trim()
-      : "");
+  const sourceUrl = resolveJobListingUrl(job);
 
   const openOriginalListing = () => {
     if (!sourceUrl) return;
