@@ -25,8 +25,18 @@ type ApiJobRecord = Record<string, unknown> & {
   snippet?: string;
   fullDescription?: string;
   tags?: string[];
+  sourceUrl?: string;
+  url?: string;
   client?: Record<string, unknown>;
 };
+
+function getJobSourceUrl(job: ApiJobRecord): string | null {
+  const raw =
+    (typeof job.sourceUrl === "string" ? job.sourceUrl : "") ||
+    (typeof job.url === "string" ? job.url : "");
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 function mapPlatformToMode(platform: string): "upwork" | "linkedin" | "email" {
   const p = platform.trim().toLowerCase();
@@ -449,6 +459,7 @@ export function ProposalTab() {
 
   const clientObj = job.client ?? {};
   const platformStr = typeof job.platform === "string" ? job.platform : "—";
+  const sourceUrl = getJobSourceUrl(job);
 
   void genTick;
   const checklistPhase =
@@ -483,9 +494,22 @@ export function ProposalTab() {
               : "—"}
           </div>
         </div>
-        <Btn variant="ghost" className="ml-auto text-xs" onClick={() => router.push("/dashboard/jobs")}>
-          ← Change job
-        </Btn>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {sourceUrl ? (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-xs font-medium text-accentText hover:border-accent/50"
+            >
+              <Icon name="arrow" size={12} />
+              View on {platformStr} ↗
+            </a>
+          ) : null}
+          <Btn variant="ghost" className="text-xs" onClick={() => router.push("/dashboard/jobs")}>
+            ← Change job
+          </Btn>
+        </div>
       </div>
 
       {checklistPhase ? (
@@ -633,6 +657,21 @@ export function ProposalTab() {
               </div>
             ))}
           </div>
+          {proposal.trim().length > 0 && sourceUrl ? (
+            <div className="mt-4 rounded-[10px] border border-border bg-surface px-4 py-3">
+              <p className="mb-3 text-xs leading-relaxed text-textMuted">
+                Copy your proposal, open the original {platformStr} listing, paste and submit
+                there — then tap <strong className="text-text">Mark as Sent</strong> here to
+                start follow-ups.
+              </p>
+              <Btn
+                onClick={() => window.open(sourceUrl, "_blank", "noopener,noreferrer")}
+              >
+                <Icon name="send" size={13} />
+                Open original listing on {platformStr} ↗
+              </Btn>
+            </div>
+          ) : null}
           <div className="mt-4 rounded-[10px] border border-accent/30 bg-accentDim px-4 py-3">
             <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-accentText">
               <Icon name="zap" size={13} /> Follow-up sequence generated automatically

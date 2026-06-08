@@ -12,6 +12,7 @@ import {
   Animated,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -417,6 +418,22 @@ export default function ProposalWriterScreen() {
 
   const title = typeof job.title === "string" ? job.title : "Job";
   const budget = typeof job.budget === "string" ? job.budget : "—";
+  const platform =
+    typeof job.platform === "string" && job.platform.trim().length
+      ? job.platform
+      : "listing";
+  const sourceUrl =
+    (typeof job.sourceUrl === "string" ? job.sourceUrl.trim() : "") ||
+    (typeof (job as { url?: string }).url === "string"
+      ? (job as { url: string }).url.trim()
+      : "");
+
+  const openOriginalListing = () => {
+    if (!sourceUrl) return;
+    void Linking.openURL(sourceUrl).catch(() => {
+      Alert.alert("Could not open link", "Try opening the job from the Jobs tab.");
+    });
+  };
 
   return (
     <KeyboardAvoidingView
@@ -462,6 +479,15 @@ export default function ProposalWriterScreen() {
             style={{ marginLeft: 4 }}
           />
         </Pressable>
+
+        {sourceUrl ? (
+          <Button
+            title={`View on ${platform} ↗`}
+            variant="ghost"
+            onPress={openOriginalListing}
+            style={styles.openListingBtn}
+          />
+        ) : null}
 
         <Text style={styles.sectionLabel}>Mode</Text>
         <ScrollView
@@ -619,6 +645,20 @@ export default function ProposalWriterScreen() {
               }}
             />
 
+            {sourceUrl ? (
+              <>
+                <Text style={styles.sendHint}>
+                  Copy your proposal, open the original {platform} listing, paste and
+                  submit there — then mark as sent here.
+                </Text>
+                <Button
+                  title={`Open original listing on ${platform} ↗`}
+                  onPress={openOriginalListing}
+                  style={{ alignSelf: "stretch" }}
+                />
+              </>
+            ) : null}
+
             <Button title="Edit Proposal" variant="ghost" onPress={openEdit} />
 
             <Button
@@ -737,6 +777,12 @@ export default function ProposalWriterScreen() {
             <Ionicons name="share-outline" size={18} color={colors.text} />
             <Text style={styles.regText}>Share</Text>
           </Pressable>
+          {sourceUrl ? (
+            <Pressable style={styles.regRow} onPress={openOriginalListing}>
+              <Ionicons name="open-outline" size={18} color={colors.accent} />
+              <Text style={styles.regText}>Open on {platform} ↗</Text>
+            </Pressable>
+          ) : null}
           <Button
             title="Close"
             variant="ghost"
@@ -1012,11 +1058,23 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.regular,
   },
+  openListingBtn: {
+    marginBottom: 12,
+    alignSelf: "flex-start",
+  },
   resultBlock: { marginTop: 4 },
   resultHint: {
     fontSize: 12,
     color: colors.textMuted,
     marginBottom: 8,
+    fontFamily: fonts.regular,
+  },
+  sendHint: {
+    marginTop: 10,
+    marginBottom: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
     fontFamily: fonts.regular,
   },
   proposalBox: {
