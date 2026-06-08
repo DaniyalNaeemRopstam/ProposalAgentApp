@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAuthApiError } from "@/lib/authApiErrors";
-import { apiUrl, getConfiguredApiBackend, parseEnvelope } from "@/lib/api";
+import { apiUrl, parseEnvelope } from "@/lib/api";
 import { clearPaTokenCookie, setPaTokenCookie } from "@/lib/auth-cookie";
 import type { ProjectReference } from "@proposalagent/shared";
 
@@ -81,14 +81,10 @@ function persistToken(token: string | null) {
   }
 }
 
-/** Browser fetch rejects with TypeError("Failed to fetch") on connection/CORS failures. */
 function rethrowFriendlyNetwork(err: unknown): never {
   if (err instanceof TypeError) {
-    const base = getConfiguredApiBackend();
     throw new Error(
-      base
-        ? `Cannot reach the API${typeof window !== "undefined" ? "" : ` at ${base}`}. If this persists after redeploying the web app, confirm Railway is running and CORS_ORIGINS includes your site URL.`
-        : "Cannot reach the API. Set NEXT_PUBLIC_API_URL (e.g. in apps/web/.env.local) and ensure the backend is running."
+      "Cannot reach the API. Check your connection and try again. If this persists after redeploying, confirm Railway is running."
     );
   }
   throw err;

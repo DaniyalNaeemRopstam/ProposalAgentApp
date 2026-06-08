@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 
 const isProduction = process.env.NODE_ENV === "production";
-
-const apiBackend = (process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "");
+const PRODUCTION_API_BACKEND =
+  "https://proposalagentapp-production.up.railway.app";
 
 function isFrontendHostUrl(url) {
   if (!url) return false;
@@ -13,6 +13,17 @@ function isFrontendHostUrl(url) {
     return false;
   }
 }
+
+function resolveApiBackend() {
+  const raw = (process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BACKEND_URL ?? "")
+    .trim()
+    .replace(/\/$/, "");
+  if (raw && !isFrontendHostUrl(raw)) return raw;
+  if (!isProduction) return "http://127.0.0.1:5000";
+  return PRODUCTION_API_BACKEND;
+}
+
+const apiBackend = resolveApiBackend();
 
 let apiHostname = "";
 try {
@@ -31,6 +42,7 @@ const nextConfig = {
     "@proposalagent/api-client",
   ],
   async rewrites() {
+    // Belt-and-suspenders; primary proxy is app/api/[...path]/route.ts
     if (!apiBackend || isFrontendHostUrl(apiBackend)) return [];
     return [
       {

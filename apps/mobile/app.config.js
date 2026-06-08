@@ -1,4 +1,4 @@
-const defaultApiUrl = "http://localhost:5000";
+const defaultApiUrl = "https://proposalagentapp-production.up.railway.app";
 const resolvedApiUrl = (process.env.EXPO_PUBLIC_API_URL || defaultApiUrl).replace(/\/$/, "");
 
 module.exports = {

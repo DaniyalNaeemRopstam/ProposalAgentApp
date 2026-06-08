@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -18,6 +17,7 @@ import { useIntegrationsStatus, useSyncIntegrations } from "../../src/hooks/useI
 import { colors } from "../../src/theme/colors";
 import { fonts } from "../../src/theme/fonts";
 import { Button } from "../../src/components/ui/Button";
+import { SettingsGuestGate } from "../../src/components/settings/SettingsGuestGate";
 
 const PLATFORMS = [
   { id: "upwork", name: "Upwork", icon: "briefcase-outline" },
@@ -223,13 +223,8 @@ function DetailBottomSheet({
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout, isGuest, isLoading } = useAuth();
+  const { user, logout } = useAuth();
 
-  useEffect(() => {
-    if (!isLoading && isGuest) {
-      router.replace("/auth/register");
-    }
-  }, [isGuest, isLoading, router]);
   const [selectedPlatform, setSelectedPlatform] = useState<(typeof PLATFORMS)[0] | null>(null);
   
   const { data: integrationStatus } = useIntegrationsStatus();
@@ -271,23 +266,8 @@ export default function SettingsScreen() {
     );
   };
 
-  if (isLoading || isGuest) {
-    return (
-      <View
-        style={[
-          styles.screen,
-          { paddingTop: insets.top + 40, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
-        ]}
-      >
-        <ActivityIndicator color={colors.accent} size="large" />
-        <Text style={{ marginTop: 16, textAlign: "center", color: colors.textMuted, fontFamily: fonts.regular }}>
-          Create your free account to access settings
-        </Text>
-      </View>
-    );
-  }
-
   return (
+    <SettingsGuestGate>
     <ScrollView
       style={[styles.screen, { paddingTop: insets.top }]}
       contentContainerStyle={styles.content}
@@ -343,6 +323,7 @@ export default function SettingsScreen() {
         onSync={handleSync}
       />
     </ScrollView>
+    </SettingsGuestGate>
   );
 }
 

@@ -5,7 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BACKGROUND_FETCH_TASK = "background-job-fetch";
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+import { API_URL } from "../constants/config";
 
 export async function registerBackgroundJobFetch() {
   try {

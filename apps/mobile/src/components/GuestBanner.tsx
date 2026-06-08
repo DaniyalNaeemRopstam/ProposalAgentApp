@@ -29,6 +29,9 @@ export function GuestBanner() {
       <Text style={styles.text} numberOfLines={2}>
         Preview mode — Sign up to use AI features
       </Text>
+      <Pressable onPress={() => router.push("/auth/login")} hitSlop={8}>
+        <Text style={styles.link}>Sign in</Text>
+      </Pressable>
       <Button
         title="Create free account"
         onPress={() => router.push("/auth/register")}
@@ -57,6 +60,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     color: colors.textMuted,
+  },
+  link: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.accent,
   },
   cta: {
     paddingHorizontal: 10,

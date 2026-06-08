@@ -1,47 +1,23 @@
 import { PA_TOKEN_COOKIE } from "@/lib/auth-cookie";
+import {
+  getConfiguredApiBackend,
+  PRODUCTION_API_BACKEND,
+} from "@/lib/apiBackend";
 
-/** Raw backend URL from env (Railway / local Express). Never the Vercel frontend URL. */
-export function getConfiguredApiBackend(): string {
-  const fromEnv = (
-    typeof process.env.NEXT_PUBLIC_API_URL === "string"
-      ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
-      : ""
-  ).trim();
-  if (fromEnv) return fromEnv;
-  if (process.env.NODE_ENV === "development") {
-    return "http://127.0.0.1:5000";
-  }
-  return "";
-}
-
-function isFrontendHostUrl(base: string): boolean {
-  try {
-    const h = new URL(base).hostname.toLowerCase();
-    return h.endsWith(".vercel.app") || h.endsWith(".netlify.app");
-  } catch {
-    return false;
-  }
-}
+export { getConfiguredApiBackend, PRODUCTION_API_BACKEND } from "@/lib/apiBackend";
 
 /**
- * Base URL for browser `fetch` calls.
- * When a remote backend is configured, returns "" so requests hit same-origin `/api/*`
- * and Next.js rewrites proxy to Railway/local Express (avoids CORS).
+ * Base URL for browser `fetch` calls — always same-origin `/api/*` so the Next.js
+ * route handler proxies to Railway/local Express (no CORS).
  */
 export function getApiBase(): string {
-  const backend = getConfiguredApiBackend();
-  if (typeof window !== "undefined" && backend && !isFrontendHostUrl(backend)) {
-    return "";
-  }
-  return backend;
+  if (typeof window !== "undefined") return "";
+  return getConfiguredApiBackend();
 }
 
-/** Direct backend URL — used for Socket.IO (cannot use HTTP rewrites). */
+/** Direct backend URL — used for Socket.IO (cannot use HTTP proxy). */
 export function getSocketBase(): string {
-  const backend = getConfiguredApiBackend();
-  if (backend) return backend;
-  if (typeof window !== "undefined") return window.location.origin;
-  return "";
+  return getConfiguredApiBackend();
 }
 
 export function apiUrl(path: string): string {

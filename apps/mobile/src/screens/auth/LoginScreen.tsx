@@ -13,6 +13,8 @@ import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { useAuth } from "../../hooks/useAuth";
 import { offerBiometricEnrollment } from "../../lib/biometricPrompt";
+import { formatAuthError } from "../../lib/authApiErrors";
+import { AuthConfigBanner } from "../../components/auth/AuthConfigBanner";
 import { colors } from "../../theme/colors";
 
 export function LoginScreen() {
@@ -61,7 +63,7 @@ export function LoginScreen() {
       await offerBiometricEnrollment();
       router.replace("/(tabs)");
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Sign in failed.");
+      setSubmitError(formatAuthError(e, "sign-in"));
     } finally {
       setSubmitting(false);
     }
@@ -84,6 +86,8 @@ export function LoginScreen() {
                 Sign in to your ProposalAgent account
               </Text>
             </View>
+
+            <AuthConfigBanner />
 
             <View style={styles.form}>
               <TextInput
