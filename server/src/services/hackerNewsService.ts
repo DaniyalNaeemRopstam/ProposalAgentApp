@@ -188,7 +188,11 @@ export async function fetchHackerNewsJobs(): Promise<AggregatedJobData[]> {
     const comments = await fetchCommentsInBatches(commentIds);
 
     const relevantComments = comments.filter(
-      (c) => c?.text && isRelevantComment(c.text)
+      (c) =>
+        c?.text &&
+        isRelevantComment(c.text) &&
+        Number.isFinite(c.id) &&
+        c.id > 0
     );
 
     return relevantComments.map((comment) => ({
