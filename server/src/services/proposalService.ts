@@ -1,19 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { ApiError } from "../utils/ApiError";
-import { rethrowAnthropicAsApiError } from "../utils/mapAnthropicError";
 import { extractJsonPayload } from "./jobsAIService";
-
-const PROPOSAL_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
-const SCORE_MODEL = process.env.ANTHROPIC_SCORE_MODEL ?? "claude-haiku-4-20250307";
-
-function getAnthropic(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey?.trim()) {
-    throw new ApiError(503, "Anthropic API key is not configured (ANTHROPIC_API_KEY).");
-  }
-  return new Anthropic({ apiKey });
-}
+import {
+  llmCompleteText,
+  llmStreamText,
+  resolveProposalModel,
+  resolveScoreModel,
+} from "./llmClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,7 +117,6 @@ function formatProjectLibrary(
 
   const tagSet = new Set((tags ?? []).map((t) => t.toLowerCase()));
 
-  // Prefer projects whose stack overlaps with the job tags
   const ranked = [...library].sort((a, b) => {
     const aRelevance = (a.stack ?? []).filter((s) => tagSet.has(s.toLowerCase())).length;
     const bRelevance = (b.stack ?? []).filter((s) => tagSet.has(s.toLowerCase())).length;
@@ -133,7 +124,7 @@ function formatProjectLibrary(
   });
 
   return ranked
-    .slice(0, 3) // top 3 most relevant
+    .slice(0, 3)
     .map(
       (p) =>
         `• ${p.title} — client: ${p.client}, outcome: ${p.outcome}, ` +
@@ -192,8 +183,6 @@ UNIVERSAL RULES
 Write the proposal now. No preamble. No "Here is the proposal:". Just the proposal text itself.`.trim();
 }
 
-// ─── Quality scoring prompt ───────────────────────────────────────────────────
-
 function buildScoringPrompt(proposal: string, jobTitle: string): string {
   return `You are a freelance proposal quality auditor. Evaluate the following proposal for the job "${jobTitle}".
 
@@ -212,7 +201,6 @@ ${proposal}
 }
 
 async function scoreProposalQuality(
-  anthropic: Anthropic,
   content: string,
   jobTitle: string
 ): Promise<{ proposalScore: number; replyProbability: number }> {
@@ -220,20 +208,16 @@ async function scoreProposalQuality(
   let proposalScore = 70;
 
   try {
-    const scoreMsg = await anthropic.messages.create({
-      model: SCORE_MODEL,
-      max_tokens: 400,
-      messages: [{ role: "user", content: buildScoringPrompt(content, jobTitle) }],
+    const scoreText = await llmCompleteText({
+      model: resolveScoreModel(),
+      maxTokens: 400,
+      prompt: buildScoringPrompt(content, jobTitle),
     });
-
-    const scoreBlock = scoreMsg.content[0];
-    if (scoreBlock.type === "text") {
-      const parsed = extractJsonPayload(scoreBlock.text);
-      const validated = proposalQualitySchema.safeParse(parsed);
-      if (validated.success) {
-        proposalScore = Math.round(validated.data.proposalScore);
-        replyProbability = Math.round(validated.data.replyProbability);
-      }
+    const parsed = extractJsonPayload(scoreText);
+    const validated = proposalQualitySchema.safeParse(parsed);
+    if (validated.success) {
+      proposalScore = Math.round(validated.data.proposalScore);
+      replyProbability = Math.round(validated.data.replyProbability);
     }
   } catch {
     // Non-fatal: use default scores if scoring call fails
@@ -242,72 +226,142 @@ async function scoreProposalQuality(
   return { proposalScore, replyProbability };
 }
 
-// ─── Main generation function ─────────────────────────────────────────────────
-
 export async function generateProposal(
   input: GenerateProposalInput
 ): Promise<GenerateProposalResult> {
-  const anthropic = getAnthropic();
+  const content = await llmCompleteText({
+    model: resolveProposalModel(),
+    maxTokens: 1000,
+    prompt: buildProposalPrompt(input),
+  });
 
-  let proposalMsg;
-  try {
-    proposalMsg = await anthropic.messages.create({
-      model: PROPOSAL_MODEL,
-      max_tokens: 1000,
-      messages: [{ role: "user", content: buildProposalPrompt(input) }],
-    });
-  } catch (err) {
-    rethrowAnthropicAsApiError(err);
-  }
-
-  const proposalBlock = proposalMsg.content[0];
-  if (proposalBlock.type !== "text") {
-    throw new ApiError(502, "Claude returned an unexpected content type for proposal generation.");
-  }
-
-  const content = proposalBlock.text.trim();
   const wordCount = content.split(/\s+/).filter(Boolean).length;
-
   const { replyProbability, proposalScore } = await scoreProposalQuality(
-    anthropic,
     content,
     input.jobTitle
   );
 
   return { content, wordCount, replyProbability, proposalScore };
 }
-
-// ─── Streaming generation (Claude messages.stream) ───────────────────────────
 
 export async function generateProposalStreaming(
   input: GenerateProposalInput,
   onTextDelta: (delta: string) => void
 ): Promise<GenerateProposalResult> {
-  const anthropic = getAnthropic();
+  const content = await llmStreamText({
+    model: resolveProposalModel(),
+    maxTokens: 1000,
+    prompt: buildProposalPrompt(input),
+    onDelta: onTextDelta,
+  });
 
-  let content: string;
-  try {
-    const stream = anthropic.messages.stream({
-      model: PROPOSAL_MODEL,
-      max_tokens: 1000,
-      messages: [{ role: "user", content: buildProposalPrompt(input) }],
-    });
-
-    stream.on("text", (delta) => {
-      onTextDelta(delta);
-    });
-
-    content = (await stream.finalText()).trim();
-  } catch (err) {
-    rethrowAnthropicAsApiError(err);
-  }
   const wordCount = content.split(/\s+/).filter(Boolean).length;
-
   const { replyProbability, proposalScore } = await scoreProposalQuality(
-    anthropic,
     content,
     input.jobTitle
   );
 
   return { content, wordCount, replyProbability, proposalScore };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Claude implementation (commented out — using OpenAI via llmClient for testing)
+// Uncomment imports + functions below and swap generateProposal* bodies to restore.
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// import Anthropic from "@anthropic-ai/sdk";
+// import { ApiError } from "../utils/ApiError";
+// import { rethrowAnthropicAsApiError } from "../utils/mapAnthropicError";
+//
+// const PROPOSAL_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+// const SCORE_MODEL = process.env.ANTHROPIC_SCORE_MODEL ?? "claude-haiku-4-20250307";
+//
+// function getAnthropic(): Anthropic {
+//   const apiKey = process.env.ANTHROPIC_API_KEY;
+//   if (!apiKey?.trim()) {
+//     throw new ApiError(503, "Anthropic API key is not configured (ANTHROPIC_API_KEY).");
+//   }
+//   return new Anthropic({ apiKey });
+// }
+//
+// async function scoreProposalQualityClaude(
+//   anthropic: Anthropic,
+//   content: string,
+//   jobTitle: string
+// ): Promise<{ proposalScore: number; replyProbability: number }> {
+//   let replyProbability = 65;
+//   let proposalScore = 70;
+//   try {
+//     const scoreMsg = await anthropic.messages.create({
+//       model: SCORE_MODEL,
+//       max_tokens: 400,
+//       messages: [{ role: "user", content: buildScoringPrompt(content, jobTitle) }],
+//     });
+//     const scoreBlock = scoreMsg.content[0];
+//     if (scoreBlock.type === "text") {
+//       const parsed = extractJsonPayload(scoreBlock.text);
+//       const validated = proposalQualitySchema.safeParse(parsed);
+//       if (validated.success) {
+//         proposalScore = Math.round(validated.data.proposalScore);
+//         replyProbability = Math.round(validated.data.replyProbability);
+//       }
+//     }
+//   } catch {
+//     // Non-fatal
+//   }
+//   return { proposalScore, replyProbability };
+// }
+//
+// export async function generateProposalClaude(
+//   input: GenerateProposalInput
+// ): Promise<GenerateProposalResult> {
+//   const anthropic = getAnthropic();
+//   let proposalMsg;
+//   try {
+//     proposalMsg = await anthropic.messages.create({
+//       model: PROPOSAL_MODEL,
+//       max_tokens: 1000,
+//       messages: [{ role: "user", content: buildProposalPrompt(input) }],
+//     });
+//   } catch (err) {
+//     rethrowAnthropicAsApiError(err);
+//   }
+//   const proposalBlock = proposalMsg.content[0];
+//   if (proposalBlock.type !== "text") {
+//     throw new ApiError(502, "Claude returned an unexpected content type for proposal generation.");
+//   }
+//   const content = proposalBlock.text.trim();
+//   const wordCount = content.split(/\s+/).filter(Boolean).length;
+//   const { replyProbability, proposalScore } = await scoreProposalQualityClaude(
+//     anthropic,
+//     content,
+//     input.jobTitle
+//   );
+//   return { content, wordCount, replyProbability, proposalScore };
+// }
+//
+// export async function generateProposalStreamingClaude(
+//   input: GenerateProposalInput,
+//   onTextDelta: (delta: string) => void
+// ): Promise<GenerateProposalResult> {
+//   const anthropic = getAnthropic();
+//   let content: string;
+//   try {
+//     const stream = anthropic.messages.stream({
+//       model: PROPOSAL_MODEL,
+//       max_tokens: 1000,
+//       messages: [{ role: "user", content: buildProposalPrompt(input) }],
+//     });
+//     stream.on("text", (delta) => onTextDelta(delta));
+//     content = (await stream.finalText()).trim();
+//   } catch (err) {
+//     rethrowAnthropicAsApiError(err);
+//   }
+//   const wordCount = content.split(/\s+/).filter(Boolean).length;
+//   const { replyProbability, proposalScore } = await scoreProposalQualityClaude(
+//     anthropic,
+//     content,
+//     input.jobTitle
+//   );
+//   return { content, wordCount, replyProbability, proposalScore };
+// }
