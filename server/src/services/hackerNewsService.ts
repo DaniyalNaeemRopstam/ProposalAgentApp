@@ -95,23 +95,24 @@ function isRelevantComment(text: string): boolean {
 
 async function findCurrentMonthThread(): Promise<number | null> {
   try {
-    const response = await axios.get<HNSearchResult>(
-      "https://hn.algolia.com/api/v1/search",
-      {
-        params: {
-          query: "Ask HN Who is hiring",
-          tags: "story",
-          hitsPerPage: 5,
-        },
-        timeout: 10000,
-      }
-    );
-
     const now = new Date();
     const currentMonth = now.toLocaleString("en-US", {
       month: "long",
       year: "numeric",
     });
+
+    // Include month+year in query — generic "Who is hiring" returns stale threads first.
+    const response = await axios.get<HNSearchResult>(
+      "https://hn.algolia.com/api/v1/search",
+      {
+        params: {
+          query: `Ask HN Who is hiring ${currentMonth}`,
+          tags: "story",
+          hitsPerPage: 10,
+        },
+        timeout: 10000,
+      }
+    );
 
     const monthMatch = response.data.hits.find((hit) =>
       hit.title.toLowerCase().includes(currentMonth.toLowerCase())

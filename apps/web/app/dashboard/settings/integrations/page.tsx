@@ -63,10 +63,21 @@ export default function IntegrationsSettingsPage() {
     try {
       const result = await syncMutation.mutateAsync();
       const stats = result.stats;
-      setSyncMessage(
-        `Found ${stats.newJobsAdded} new jobs · ${stats.hotJobsFound} hot matches (${stats.jobsFetched} fetched)`
-      );
-      toast.success("Sync complete");
+      const base = `Found ${stats.newJobsAdded} new jobs · ${stats.hotJobsFound} hot matches (${stats.jobsFetched} fetched)`;
+      if (stats.jobsFetched === 0) {
+        const hints = [
+          "Hacker News needs the latest server deploy on Railway.",
+          "LinkedIn needs a RapidAPI subscription to linkedin-jobs-search (not just the key).",
+          "Upwork RSS and Wellfound feeds are currently blocked by those sites.",
+        ];
+        const errLine =
+          stats.errors?.length > 0 ? ` Errors: ${stats.errors.join("; ")}` : "";
+        setSyncMessage(`${base}.${errLine} ${hints.join(" ")}`);
+        toast.error("Sync ran but no jobs were fetched");
+      } else {
+        setSyncMessage(base);
+        toast.success("Sync complete");
+      }
     } catch {
       /* notifyHttpError */
     }
@@ -250,7 +261,10 @@ export default function IntegrationsSettingsPage() {
           )}
         </Btn>
         {syncMessage ? (
-          <p className="mt-3 text-[13px] font-medium" style={{ color: C.success }}>
+          <p
+            className="mt-3 text-[13px] font-medium leading-relaxed"
+            style={{ color: syncMessage.includes("(0 fetched)") ? C.warn : C.success }}
+          >
             {syncMessage}
           </p>
         ) : null}
