@@ -17,6 +17,7 @@ export type IconName =
   | "arrow"
   | "sparkle"
   | "chevronDown"
+  | "search"
   | "logout"
   | "menu"
   | "x";
@@ -126,6 +127,12 @@ export function Icon({ name, size = 16, className }: IconProps) {
     chevronDown: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
         <polyline points="6 9 12 15 18 9" stroke={stroke} strokeWidth="2" />
+      </svg>
+    ),
+    search: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+        <circle cx="11" cy="11" r="7" stroke={stroke} strokeWidth="2" />
+        <line x1="16.5" y1="16.5" x2="21" y2="21" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
       </svg>
     ),
     logout: (

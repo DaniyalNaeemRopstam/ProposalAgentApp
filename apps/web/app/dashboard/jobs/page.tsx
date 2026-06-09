@@ -19,6 +19,18 @@ import { useAuth } from "@/context/AuthContext";
 import { useAppStore } from "@/store/appStore";
 import { C } from "@/styles/theme";
 import { cn } from "@/lib/cn";
+import {
+  JobsSearchFilterToggle,
+  JobsSearchFilterPanel,
+  countActiveJobsSearchFilters,
+  EMPTY_JOBS_SEARCH_FILTERS,
+  type JobsSearchFilters,
+} from "@/components/jobs/JobsSearchFilter";
+import {
+  applyJobsSearchFilters,
+  collectJobPlatforms,
+  collectJobSkills,
+} from "@/lib/jobListFilters";
 
 type SavedFilter = "all" | "new" | "saved";
 
@@ -59,6 +71,12 @@ export default function JobsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [lastSyncLabel, setLastSyncLabel] = useState<string | null>(null);
   const [lastNewCount, setLastNewCount] = useState<number | null>(null);
+  const [customJob, setCustomJob] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<JobsSearchFilters>(
+    EMPTY_JOBS_SEARCH_FILTERS
+  );
 
   const { data: jobs = [], isLoading, error, isFetching } = useJobs({
     source: sourceFilter,
@@ -69,7 +87,7 @@ export default function JobsPage() {
   const { data: intStatus } = useIntegrationsStatus({ enabled: !isGuest });
   const syncMutation = useSyncIntegrations();
 
-  const filteredJobs = useMemo(() => {
+  const savedFilteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       const savedAt = (job as Job & { savedAt?: string }).savedAt;
       const hasSaved = Boolean(savedAt);
@@ -79,6 +97,20 @@ export default function JobsPage() {
       return true;
     });
   }, [jobs, savedFilter]);
+
+  const availablePlatforms = useMemo(
+    () => collectJobPlatforms(savedFilteredJobs),
+    [savedFilteredJobs]
+  );
+  const availableSkills = useMemo(
+    () => collectJobSkills(savedFilteredJobs),
+    [savedFilteredJobs]
+  );
+
+  const filteredJobs = useMemo(
+    () => applyJobsSearchFilters(savedFilteredJobs, searchFilters),
+    [savedFilteredJobs, searchFilters]
+  );
 
   const saveJobMutation = useMutation({
     mutationFn: async (body: {
@@ -113,9 +145,6 @@ export default function JobsPage() {
       toast.success("Job saved — analyzing…");
     },
   });
-
-  const [customJob, setCustomJob] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
 
   const handleResearchClient = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -280,16 +309,44 @@ export default function JobsPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[12px] text-textMuted sm:text-[13px]">
-          AI matched{" "}
-          <span className="font-semibold text-accent">{filteredJobs.length}</span> listing
-          {filteredJobs.length !== 1 ? "s" : ""}
-          {sourceFilter === "aggregated" ? " · Auto-fetched roles" : null}
-        </p>
-        <Btn variant="ghost" onClick={() => setShowCustom((v) => !v)}>
-          <Icon name="copy" size={13} /> Paste job manually
-        </Btn>
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[12px] text-textMuted sm:text-[13px]">
+            AI matched{" "}
+            <span className="font-semibold text-accent">{filteredJobs.length}</span> listing
+            {filteredJobs.length !== 1 ? "s" : ""}
+            {filteredJobs.length !== savedFilteredJobs.length ? (
+              <span className="text-textDim"> · filtered from {savedFilteredJobs.length}</span>
+            ) : null}
+            {sourceFilter === "aggregated" ? " · Auto-fetched roles" : null}
+          </p>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <JobsSearchFilterToggle
+              open={showSearch}
+              onToggle={() => setShowSearch((v) => !v)}
+              activeCount={countActiveJobsSearchFilters(searchFilters)}
+            />
+            <Btn
+              variant="ghost"
+              className="w-full sm:w-auto"
+              onClick={() => setShowCustom((v) => !v)}
+            >
+              <Icon name="copy" size={13} /> Paste job manually
+            </Btn>
+          </div>
+        </div>
+
+        {showSearch ? (
+          <JobsSearchFilterPanel
+            filters={searchFilters}
+            onChange={setSearchFilters}
+            onClose={() => setShowSearch(false)}
+            availablePlatforms={availablePlatforms}
+            availableSkills={availableSkills}
+            resultCount={filteredJobs.length}
+            totalCount={savedFilteredJobs.length}
+          />
+        ) : null}
       </div>
 
       {showCustom && (
@@ -322,11 +379,27 @@ export default function JobsPage() {
           </div>
           <div className="font-display mb-2 text-xl text-text">No jobs found</div>
           <p className="mx-auto max-w-xs text-textMuted">
-            Adjust filters or run a sync from Settings → Integrations. You can also paste a job manually.
+            {savedFilteredJobs.length > 0
+              ? "No listings match your search or filters. Try clearing filters or broadening your query."
+              : "Adjust source filters, use Search & filter, or run a sync from Settings → Integrations."}
           </p>
-          <Btn className="mt-6" onClick={() => void handleSyncNow()} disabled={syncMutation.isPending}>
-            Sync jobs now
-          </Btn>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {savedFilteredJobs.length > 0 &&
+            countActiveJobsSearchFilters(searchFilters) > 0 ? (
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  setSearchFilters(EMPTY_JOBS_SEARCH_FILTERS);
+                  setShowSearch(false);
+                }}
+              >
+                Clear search filters
+              </Btn>
+            ) : null}
+            <Btn onClick={() => void handleSyncNow()} disabled={syncMutation.isPending}>
+              Sync jobs now
+            </Btn>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
